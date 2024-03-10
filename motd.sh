@@ -55,12 +55,27 @@ if ! command -v lolcat >/dev/null 2>&1; then
     fi
 fi
 # Define color codes
-color_reset="\e[0m"          # Reset color
-color_bold="\e[1m"           # Bold
-color_yellow="\e[33m"        # Yellow
-color_red="\e[31m"           # Red
-color_blue="\e[34m"          # Blue
-color_green="\e[32m"         # Green
+color_reset="\e[0m"          # reset color
+color_bold="\e[1m"           # bold
+color_yellow="\e[33m"        # yellow
+color_red="\e[31m"           # red
+color_orange="${color_red}${color_yellow}"  # orange (approximation)
+color_blue="\e[34m"          # blue
+color_green="\e[32m"         # green
+color_magenta="\e[35m"       # magenta/purple
+color_cyan="\e[36m"          # cyan
+color_light_gray="\e[37m"    # light gray
+color_dark_gray="\e[90m"     # dark gray
+color_light_red="\e[91m"     # light red
+color_light_green="\e[92m"   # light green
+color_light_yellow="\e[93m"  # light yellow
+color_light_blue="\e[94m"    # light blue
+color_light_magenta="\e[95m" # light magenta
+color_light_cyan="\e[96m"    # light cyan
+color_white="\e[97m"         # white
+
+# Usage example
+echo -e "${color_orange}Orange Text${color_reset}"
 logo=$(cat << "EOF"
  __          __  ______   _         _____    ____    __  __   ______   _
  \ \        / / |  ____| | |       / ____|  / __ \  |  \/  | |  ____| | |
