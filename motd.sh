@@ -16,26 +16,22 @@ storage_total=$(df -BM / | awk '/\// {print $2}')
 storage_used=$(df -BM / | awk '/\// {print $3}')
 storage_percentage=$(df -BM / | awk '/\// {print $5}')
 
-# Check if bc is installed
+package_managers=("apt-get" "yum" "dnf" "zypper" "pacman" "apk" "emerge")
+
 if ! command -v bc >/dev/null 2>&1; then
     echo "bc is not installed. Installing..."
 
-    # Try installing using package managers
-    if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get install -y bc
-    elif command -v yum >/dev/null 2>&1; then
-        sudo yum install -y bc
-    elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y bc
-    elif command -v zypper >/dev/null 2>&1; then
-        sudo zypper install -y bc
-    elif command -v pacman >/dev/null 2>&1; then
-        sudo pacman -S --noconfirm bc
-    elif command -v apk >/dev/null 2>&1; then
-        sudo apk add bc
-    elif command -v emerge >/dev/null 2>&1; then
-	sudo emerge sys-devel/bc
-    else
+    installed=false
+
+    for manager in "${package_managers[@]}"; do
+        if command -v "$manager" >/dev/null 2>&1; then
+            sudo "$manager" install -y bc
+            installed=true
+            break
+        fi
+    done
+
+    if ! "$installed"; then
         echo "Unsupported package manager. Please install bc manually."
         exit 1
     fi
@@ -43,28 +39,21 @@ fi
 if ! command -v lolcat >/dev/null 2>&1; then
     echo "lolcat is not installed. Installing..."
 
-    # Try installing using package managers
-    if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get install -y lolcat
-    elif command -v yum >/dev/null 2>&1; then
-        sudo yum install -y lolcat
-    elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y lolcat
-    elif command -v zypper >/dev/null 2>&1; then
-        sudo zypper install -y lolcat
-    elif command -v pacman >/dev/null 2>&1; then
-        sudo pacman -S --noconfirm lolcat
-    elif command -v apk >/dev/null 2>&1; then
-        sudo apk add lolcat
-    elif command -v emerge >/dev/null 2>&1; then
-        sudo emerge lolcat
-    else
+    installed=false
+
+    for manager in "${package_managers[@]}"; do
+        if command -v "$manager" >/dev/null 2>&1; then
+            sudo "$manager" install -y lolcat
+            installed=true
+            break
+        fi
+    done
+
+    if ! "$installed"; then
         echo "Unsupported package manager. Please install lolcat manually."
         exit 1
     fi
-
 fi
-
 # Define color codes
 color_reset="\e[0m"          # Reset color
 color_bold="\e[1m"           # Bold
@@ -82,7 +71,7 @@ logo=$(cat << "EOF"
 EOF
 )
 
-# Print the welcome message with the logo
+# Print the welcome message with the ASCII
 echo -e "${color_bold}$logo${color_reset}" | lolcat
 
 echo -e "${color_bold}-----------------------------------------------------------------------${color_reset}"
