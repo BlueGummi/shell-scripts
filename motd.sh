@@ -73,9 +73,6 @@ color_light_blue="\e[94m"    # light blue
 color_light_magenta="\e[95m" # light magenta
 color_light_cyan="\e[96m"    # light cyan
 color_white="\e[97m"         # white
-
-# Usage example
-echo -e "${color_orange}Orange Text${color_reset}"
 logo=$(cat << "EOF"
  __          __  ______   _         _____    ____    __  __   ______   _
  \ \        / / |  ____| | |       / ____|  / __ \  |  \/  | |  ____| | |
