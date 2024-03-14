@@ -2,6 +2,25 @@
 # add 
 # session    optional     pam_motd.so /etc/profile.d/motd.sh
 # to /etc/pam.d/login
+###############################################################################
+#
+# Copyright (C) [Year] [Your Name]
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+###############################################################################
+
 #!/bin/bash
 current_time=$(date +"%T")
 timezone=$(date +"%Z")
@@ -88,8 +107,8 @@ echo -e "${color_bold}$logo${color_reset}" | lolcat
 
 echo -e "${color_bold}-----------------------------------------------------------------------${color_reset}"
 echo -e "Welcome to ${color_bold}Gummi's MacBook Air!${color_reset}"
-echo -e "This machine is running ${color_bold}${color_blue}Arch Linux${color_reset},"
-echo -e "a ${color_bold}standalone Linux Distribution${color_reset}"
+echo -e "This machine is running ${color_bold}${color_blue}Gentoo Linux${color_reset},"
+echo -e "a ${color_bold}standalone source-based Linux Distribution${color_reset}"
 echo ""
 echo -e "Hostname: ${color_bold}${color_green}$hostname${color_reset}"
 echo -e "Kernel Version: ${color_bold}${color_green}$kernel_version${color_reset}"
