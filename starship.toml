@@ -1,7 +1,7 @@
 format = '$all$character'
 
 [custom.current_time]
-command = "printf 'at ' && date +'%H:%M %p'"
+command = "printf ' at ' && date +'%H:%M %p'"
 when = "true"
 format = "[$output]($style) "
 style = "bold green"
@@ -81,7 +81,7 @@ symbol = "gcp "
 
 [git_branch]
 symbol = ""
-
+format = '[$symbol]($style)'
 [golang]
 symbol = "go "
 format = '[$symbol]($style)'
