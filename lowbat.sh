@@ -5,7 +5,7 @@ turn_off() {
     hyprctl keyword decoration:blur:enabled false
     hyprctl keyword decoration:rounding 0
     hyprctl keyword decoration:drop_shadow false
-    hyprctl keyword misc:vfr = true
+    hyprctl keyword misc:vfr true
     sudo cpupower frequency-set --governor powersave --max 850000
     echo "Low battery settings applied."
 }
