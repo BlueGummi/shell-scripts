@@ -1,1 +1,0 @@
-bindl = , switch:on:Lid Switch, exec, hyprlock & sleep 1 && systemctl suspend
