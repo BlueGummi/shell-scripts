@@ -1,7 +1,6 @@
 format = '$all$character'
-
 [custom.current_time]
-command = "printf ' at ' && date +'%H:%M %p'"
+command = "printf ' at' && date +'%l:%M %p'"
 when = "true"
 format = "[$output]($style) "
 style = "bold green"
