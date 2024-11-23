@@ -1,7 +1,7 @@
 format = '$all$character'
 [custom.current_time]
 when = "true"
-command = "printf 'at ' && ~/hours.sh"
+command = "printf 'at ' && date +'%-I:%M %p'"
 format = "[$output]($style) "
 style = "bold green"
 
