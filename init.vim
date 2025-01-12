@@ -18,12 +18,13 @@ Plug 'hrsh7th/cmp-path'
 Plug 'hrsh7th/cmp-cmdline'
 Plug 'preservim/nerdtree'
 Plug 'akinsho/toggleterm.nvim', {'tag' : '*'}
-
+Plug 'brymer-meneses/grammar-guard.nvim'
+Plug 'williamboman/nvim-lsp-installer'
 call plug#end()
 lua require("toggleterm").setup()
 lua << EOF
 require'nvim-treesitter.configs'.setup {
-  ensure_installed = "rust", "c", "gleam", "cpp", "markdown",
+  ensure_installed = "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js",
   highlight = {
     enable = true,              
   },
@@ -31,24 +32,15 @@ require'nvim-treesitter.configs'.setup {
     enable = true,
   }
 }
-local lspconfig = require('lspconfig')
-lspconfig.rust_analyzer.setup({
-    settings = {
-        ["rust-analyzer"] = {
-            cargo = {
-                loadOutDirsFromCheck = true,
-            },
-            procMacro = {
-                enable = true,
-            },
-        },
-    },
+vim.filetype.add({
+  extension = {
+    mdx = "markdown",
+  },
 })
 EOF
 
 lua << EOF
 local lspconfig = require('lspconfig')
-
 lspconfig.rust_analyzer.setup({
     settings = {
         ["rust-analyzer"] = {
@@ -61,9 +53,26 @@ lspconfig.rust_analyzer.setup({
         },
     },
 })
-
+require("grammar-guard").init()
 local cmp = require'cmp'
-
+require("lspconfig").grammar_guard.setup({
+	settings = {
+		ltex = {
+			enabled = { "latex", "tex", "bib", "markdown" },
+			language = "en",
+			diagnosticSeverity = "information",
+			setenceCacheSize = 2000,
+			additionalRules = {
+				enablePickyRules = true,
+				motherTongue = "en",
+			},
+			trace = { server = "verbose" },
+			dictionary = {},
+			disabledRules = {},
+			hiddenFalsePositives = {},
+		},
+	},
+})
 cmp.setup({
   snippet = {
     expand = function(args)
