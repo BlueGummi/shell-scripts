@@ -18,9 +18,11 @@ Plug 'hrsh7th/cmp-path'
 Plug 'hrsh7th/cmp-cmdline'
 Plug 'preservim/nerdtree'
 Plug 'akinsho/toggleterm.nvim', {'tag' : '*'}
-Plug 'brymer-meneses/grammar-guard.nvim'
 Plug 'williamboman/nvim-lsp-installer'
+Plug 'tribela/transparent.nvim'
+Plug 'navarasu/onedark.nvim'
 call plug#end()
+colorscheme onedark
 lua require("toggleterm").setup()
 lua << EOF
 require'nvim-treesitter.configs'.setup {
@@ -38,41 +40,8 @@ vim.filetype.add({
   },
 })
 EOF
-
 lua << EOF
-local lspconfig = require('lspconfig')
-lspconfig.rust_analyzer.setup({
-    settings = {
-        ["rust-analyzer"] = {
-            cargo = {
-                loadOutDirsFromCheck = true,
-            },
-            procMacro = {
-                enable = true,
-            },
-        },
-    },
-})
-require("grammar-guard").init()
 local cmp = require'cmp'
-require("lspconfig").grammar_guard.setup({
-	settings = {
-		ltex = {
-			enabled = { "latex", "tex", "bib", "markdown" },
-			language = "en",
-			diagnosticSeverity = "information",
-			setenceCacheSize = 2000,
-			additionalRules = {
-				enablePickyRules = true,
-				motherTongue = "en",
-			},
-			trace = { server = "verbose" },
-			dictionary = {},
-			disabledRules = {},
-			hiddenFalsePositives = {},
-		},
-	},
-})
 cmp.setup({
   snippet = {
     expand = function(args)
@@ -90,11 +59,8 @@ cmp.setup({
     { name = 'path' },
   },
 })
-lspconfig.clangd.setup {}
-require('lspconfig').gleam.setup({})
 vim.api.nvim_set_keymap('n', '<leader>gd', '<cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>gr', '<cmd>lua vim.lsp.buf.references()<CR>', { noremap = true, silent = true })
-
 EOF
 
 let g:webdevicons_enable_airline_tabline = 1
@@ -104,21 +70,28 @@ if !isdirectory(expand("~/.local/share/nvim/undo"))
   call mkdir(expand("~/.local/share/nvim/undo"), "p")
 endif
 
+lua << EOF
+require('transparent').setup({})
+EOF
 set undofile
 set undodir=~/.local/share/nvim/undo
-let g:airline#extensions#tabline#enabled = 1
+"let g:airline#extensions#tabline#enabled = 1
 let g:airline_theme = 'base16_gruvbox_dark_medium'
-colorscheme everforest
 set laststatus=2
 set termguicolors
 let g:powerline_pycmd = 'python3'
 set statusline=%#PmenuSel#%{powerline#statusline()}%#Normal#
 set number
-nnoremap <leader>n :NERDTreeFocus<CR>
-nnoremap <C-h> :NERDTreeToggle<CR>
-nnoremap <C-f> :NERDTreeFind<CR>
 autocmd TermEnter term://*toggleterm#*
       \ tnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
 
 nnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
 inoremap <silent><c-t> <Esc><Cmd>exe v:count1 . "ToggleTerm"<CR>
+nnoremap <leader>n :NERDTreeFocus<CR>
+nnoremap <C-h> :NERDTreeToggle<CR>
+nnoremap <C-f> :NERDTreeFind<CR>
+let g:airline#extensions#disable_rtp_load=1
+autocmd BufReadPost *
+     \ if line("'\"") > 0 && line("'\"") <= line("$") |
+     \   exe "normal! g`\"" |
+     \ endif
