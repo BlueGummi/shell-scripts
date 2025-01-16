@@ -17,13 +17,12 @@ Plug 'hrsh7th/cmp-buffer'
 Plug 'hrsh7th/cmp-path'     
 Plug 'hrsh7th/cmp-cmdline'
 Plug 'preservim/nerdtree'
-Plug 'akinsho/toggleterm.nvim', {'tag' : '*'}
+Plug 'caenrique/buffer-term.nvim'
 Plug 'williamboman/nvim-lsp-installer'
 Plug 'tribela/transparent.nvim'
 Plug 'navarasu/onedark.nvim'
 call plug#end()
 colorscheme onedark
-lua require("toggleterm").setup()
 lua << EOF
 require'nvim-treesitter.configs'.setup {
   ensure_installed = "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js",
@@ -41,6 +40,16 @@ vim.filetype.add({
 })
 EOF
 lua << EOF
+require('buffer-term').setup({
+  terminal_options = {
+      start_insert = true,
+      buf_listed = false,
+      no_numbers = true,
+  }
+})
+local buffer_term = require('buffer-term')
+
+buffer_term.setup() -- default config
 local cmp = require'cmp'
 cmp.setup({
   snippet = {
@@ -82,11 +91,6 @@ set termguicolors
 let g:powerline_pycmd = 'python3'
 set statusline=%#PmenuSel#%{powerline#statusline()}%#Normal#
 set number
-autocmd TermEnter term://*toggleterm#*
-      \ tnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
-
-nnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
-inoremap <silent><c-t> <Esc><Cmd>exe v:count1 . "ToggleTerm"<CR>
 nnoremap <leader>n :NERDTreeFocus<CR>
 nnoremap <C-h> :NERDTreeToggle<CR>
 nnoremap <C-f> :NERDTreeFind<CR>
@@ -97,3 +101,16 @@ autocmd BufReadPost *
 
 let g:airline#extensions#tabline#formatter = 'default'
 let g:airline_powerline_fonts = 1
+
+lua << EOF
+local buffer_term = require('buffer-term')
+
+buffer_term.setup() 
+
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>')
+vim.keymap.set({ 'n', 't' }, ';a', function() buffer_term.toggle('a') end)
+vim.keymap.set({ 'n', 't' }, ';s', function() buffer_term.toggle('s') end)
+vim.keymap.set({ 'n', 't' }, ';d', function() buffer_term.toggle('d') end)
+vim.keymap.set({ 'n', 't' }, ';f', function() buffer_term.toggle('f') end)
+vim.keymap.set({ 'n', 't' }, '<c-;>', buffer_term.toggle_last)
+EOF
