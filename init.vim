@@ -75,7 +75,7 @@ require('transparent').setup({})
 EOF
 set undofile
 set undodir=~/.local/share/nvim/undo
-"let g:airline#extensions#tabline#enabled = 1
+let g:airline#extensions#tabline#enabled = 1
 let g:airline_theme = 'base16_gruvbox_dark_medium'
 set laststatus=2
 set termguicolors
@@ -90,8 +90,10 @@ inoremap <silent><c-t> <Esc><Cmd>exe v:count1 . "ToggleTerm"<CR>
 nnoremap <leader>n :NERDTreeFocus<CR>
 nnoremap <C-h> :NERDTreeToggle<CR>
 nnoremap <C-f> :NERDTreeFind<CR>
-let g:airline#extensions#disable_rtp_load=1
 autocmd BufReadPost *
      \ if line("'\"") > 0 && line("'\"") <= line("$") |
      \   exe "normal! g`\"" |
      \ endif
+
+let g:airline#extensions#tabline#formatter = 'default'
+let g:airline_powerline_fonts = 1
