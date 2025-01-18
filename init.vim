@@ -114,3 +114,10 @@ vim.keymap.set({ 'n', 't' }, ';d', function() buffer_term.toggle('d') end)
 vim.keymap.set({ 'n', 't' }, ';f', function() buffer_term.toggle('f') end)
 vim.keymap.set({ 'n', 't' }, '<c-;>', buffer_term.toggle_last)
 EOF
+" Set tabstop and shiftwidth
+set tabstop=4           " Number of spaces that a <Tab> counts for
+set shiftwidth=4        " Number of spaces to use for each step of (auto)indent
+set expandtab           " Use spaces instead of tabs
+set autoindent          " Auto-indent new lines
+set smartindent         " Smart indenting based on syntax
+
