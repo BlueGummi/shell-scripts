@@ -122,3 +122,4 @@ set autoindent          " Auto-indent new lines
 set smartindent         " Smart indenting based on syntax
 command! Wq wq
 command! W w
+set relativenumber
