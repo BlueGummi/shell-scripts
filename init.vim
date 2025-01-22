@@ -120,4 +120,5 @@ set shiftwidth=4        " Number of spaces to use for each step of (auto)indent
 set expandtab           " Use spaces instead of tabs
 set autoindent          " Auto-indent new lines
 set smartindent         " Smart indenting based on syntax
-
+command! Wq wq
+command! W w
