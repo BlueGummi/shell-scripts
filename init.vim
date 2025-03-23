@@ -21,8 +21,17 @@ Plug 'caenrique/buffer-term.nvim'
 Plug 'williamboman/nvim-lsp-installer'
 Plug 'tribela/transparent.nvim'
 Plug 'navarasu/onedark.nvim'
+Plug 'scottmckendry/cyberdream.nvim'
 call plug#end()
-colorscheme onedark
+
+lua << EOF
+require("cyberdream").setup({
+    transparent = true,
+})
+EOF
+
+colorscheme cyberdream 
+
 lua << EOF
 require'nvim-treesitter.configs'.setup {
   ensure_installed = "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js",
