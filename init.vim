@@ -54,6 +54,7 @@ local lspconfig = require'lspconfig'
 local on_attach = function(client)
     require'completion'.on_attach(client)
 end
+lspconfig.bashls.setup{}
 require("lspconfig").rust_analyzer.setup({
     settings = {
         ["rust-analyzer"] = {
