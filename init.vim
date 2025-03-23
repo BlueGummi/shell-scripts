@@ -73,9 +73,54 @@ cmp.setup({
 require'lspconfig'.clangd.setup{
     cmd = { "clangd" },
 }
-
-require'lspconfig'.rust_analyzer.setup{}
 require'toggleterm'.setup()
+local lspconfig = require'lspconfig'
+
+local on_attach = function(client)
+    require'completion'.on_attach(client)
+end
+require("lspconfig").rust_analyzer.setup({
+    settings = {
+        ["rust-analyzer"] = {
+            diagnostics = {
+                enableExperimental = true,
+            },
+            checkOnSave = {
+                command = "clippy",
+            },
+            cargo = {
+                allFeatures = true,
+                buildScripts = {
+                    enable = true,
+                },
+            },
+            procMacro = {
+                enable = true,
+            },
+            analysis = {
+                enable = true,
+                ignoreInactiveCode = false,
+            },
+            imports = {
+                granularity = {
+                    group = "module",
+                },
+                prefix = "self",
+            },
+        },
+    },
+    root_dir = function(fname)
+        return require("lspconfig.util").root_pattern("Cargo.toml", "rust-project.json", ".git")(fname)
+            or vim.fn.getcwd()  -- Fallback to current working directory if no Cargo.toml is found
+    end,
+    single_file_support = true,
+})
+
+lspconfig.rust_analyzer.setup({
+    on_attach = function(client, bufnr)
+        vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
+    end
+})
 
 vim.api.nvim_set_keymap('n', '<leader>f', ':Neoformat<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>gd', '<cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
