@@ -27,6 +27,8 @@ Plug 'sbdchd/neoformat'
 
 call plug#end()
 
+let mapleader = " "
+
 lua << EOF
 require("cyberdream").setup({
     transparent = true,
@@ -151,7 +153,6 @@ autocmd BufReadPost *
      \   exe "normal! g`\"" |
      \ endif
 
-let mapleader = " "
 let g:airline#extensions#tabline#enabled = 1
 let g:airline_theme = 'base16_gruvbox_dark_medium'
 let g:powerline_pycmd = 'python3'
