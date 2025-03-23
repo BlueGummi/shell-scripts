@@ -44,34 +44,7 @@ require'nvim-treesitter.configs'.setup {
     }
 }
 
-local cmp = require'cmp'
-cmp.setup({
-    snippet = {
-        expand = function(args)
-        end,
-    },
-    
-    completion = {
-        completeopt = 'menu,menuone,noselect',
-        max_items = 10,
-        min_length = 1,
-        timeout = 100, 
-    },
 
-    mapping = {
-        ['<C-n>'] = cmp.mapping.select_next_item(),
-        ['<C-p>'] = cmp.mapping.select_prev_item(),
-        ['<C-y>'] = cmp.mapping.confirm({ select = true }),
-        ['<C-e>'] = cmp.mapping.close(),
-    },
-
-    sources = {
-        { name = 'nvim_lsp' },
-        { name = 'buffer' },
-        { name = 'path' },
-    },
-
-})
 require'lspconfig'.clangd.setup{
     cmd = { "clangd" },
 }
@@ -113,7 +86,7 @@ require("lspconfig").rust_analyzer.setup({
     },
     root_dir = function(fname)
         return require("lspconfig.util").root_pattern("Cargo.toml", "rust-project.json", ".git")(fname)
-            or vim.fn.getcwd()  -- Fallback to current working directory if no Cargo.toml is found
+            or vim.fn.getcwd() 
     end,
     single_file_support = true,
 })
@@ -124,9 +97,52 @@ lspconfig.rust_analyzer.setup({
     end
 })
 
+
+vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
+    border = "rounded",
+})
+
+local lsp_buf_hover = function()
+    if vim.fn.pumvisible() == 1 then
+        vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<C-e>", true, true, true), "n")
+    end
+    vim.lsp.buf.hover()
+end
+
+local cmp = require'cmp'
+cmp.setup({
+    snippet = {
+        expand = function(args)
+        end,
+    },
+    
+    completion = {
+        completeopt = 'menu,menuone,noselect',
+        max_items = 10,
+        min_length = 1,
+        timeout = 100, 
+    },
+    mapping = {
+        ['<C-n>'] = cmp.mapping.select_next_item(),
+        ['<C-p>'] = cmp.mapping.select_prev_item(),
+        ['<C-e>'] = cmp.mapping.close(),
+        ['<CR>'] = cmp.mapping.confirm({ select = true }),
+        ['<C-l>'] = cmp.mapping(lsp_buf_hover, { 'i', 's' }),
+    },
+
+    sources = {
+        { name = 'nvim_lsp',  max_item_count = 10 },
+        { name = 'buffer', max_item_count = 10 },
+        { name = 'path', max_item_count = 10 },
+    },
+    window = {
+        completion = cmp.config.window.bordered(),
+        documentation = cmp.config.window.bordered(),
+    },
+
+})
+
 vim.api.nvim_set_keymap('n', '<leader>f', ':Neoformat<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>gd', '<cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>gr', '<cmd>lua vim.lsp.buf.references()<CR>', { noremap = true, silent = true })
 
 vim.keymap.set('t', '<Esc>', '<C-\\><C-n>')
 vim.filetype.add({
