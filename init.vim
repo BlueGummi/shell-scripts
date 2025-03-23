@@ -24,7 +24,7 @@ Plug 'tribela/transparent.nvim'
 Plug 'navarasu/onedark.nvim'
 Plug 'scottmckendry/cyberdream.nvim'
 Plug 'sbdchd/neoformat'
-
+Plug 'wakatime/vim-wakatime'
 call plug#end()
 
 let mapleader = " "
@@ -43,11 +43,25 @@ require'nvim-treesitter.configs'.setup {
         enable = true,
     }
 }
-
-
-require'lspconfig'.clangd.setup{
-    cmd = { "clangd" },
+local lspconfig = require('lspconfig')
+lspconfig.clangd.setup{
+    on_attach = function(client, bufnr)
+        require('cmp').setup.buffer { 
+            sources = {
+                { name = 'nvim_lsp' },
+            }
+        }
+    end,
+    capabilities = {
+        textDocument = {
+            hover = {
+                dynamicRegistration = false,
+            },
+        },
+    },
 }
+
+
 require'toggleterm'.setup()
 local lspconfig = require'lspconfig'
 
@@ -142,6 +156,7 @@ cmp.setup({
         ['<C-e>'] = cmp.mapping.close(),
         ['<C-y>'] = cmp.mapping.confirm({ select = true }),
         ['<C-l>'] = cmp.mapping(lsp_buf_hover, { 'i', 's' }),
+        ['<C-Space>'] = cmp.mapping.complete(),
     },
 
     sources = {
