@@ -103,6 +103,19 @@ vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
     border = "rounded",
 })
 
+local original_hover = vim.lsp.handlers["textDocument/hover"]
+
+vim.lsp.handlers["textDocument/hover"] = function(_, result, ctx, config)
+    local cmp = require'cmp'
+    if cmp.visible() then
+        cmp.close()
+    end
+  
+    if original_hover then
+        original_hover(_, result, ctx, config)
+    end
+end
+
 local lsp_buf_hover = function()
     if vim.fn.pumvisible() == 1 then
         vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<C-e>", true, true, true), "n")
@@ -127,7 +140,7 @@ cmp.setup({
         ['<C-n>'] = cmp.mapping.select_next_item(),
         ['<C-p>'] = cmp.mapping.select_prev_item(),
         ['<C-e>'] = cmp.mapping.close(),
-        ['<CR>'] = cmp.mapping.confirm({ select = true }),
+        ['<C-y>'] = cmp.mapping.confirm({ select = true }),
         ['<C-l>'] = cmp.mapping(lsp_buf_hover, { 'i', 's' }),
     },
 
