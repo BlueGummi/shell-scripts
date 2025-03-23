@@ -24,7 +24,6 @@ Plug 'tribela/transparent.nvim'
 Plug 'navarasu/onedark.nvim'
 Plug 'scottmckendry/cyberdream.nvim'
 Plug 'sbdchd/neoformat'
-Plug 'mfussenegger/nvim-lint'
 
 call plug#end()
 
@@ -77,18 +76,6 @@ require'lspconfig'.clangd.setup{
 
 require'lspconfig'.rust_analyzer.setup{}
 require'toggleterm'.setup()
-local lspconfig = require('lspconfig')
-
-lspconfig.pylsp.setup{
-    settings = {
-        pylsp = {
-            plugins = {
-                black = { enabled = true },
-                mypy = { enabled = true },
-            }
-        }
-    }
-}
 
 vim.api.nvim_set_keymap('n', '<leader>f', ':Neoformat<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>gd', '<cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
