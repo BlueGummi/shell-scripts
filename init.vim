@@ -23,6 +23,8 @@ Plug 'williamboman/nvim-lsp-installer'
 Plug 'tribela/transparent.nvim'
 Plug 'navarasu/onedark.nvim'
 Plug 'scottmckendry/cyberdream.nvim'
+Plug 'sbdchd/neoformat'
+Plug 'mfussenegger/nvim-lint'
 
 call plug#end()
 
@@ -47,6 +49,13 @@ cmp.setup({
         expand = function(args)
         end,
     },
+    
+    completion = {
+        completeopt = 'menu,menuone,noselect',
+        max_items = 10,
+        min_length = 1,
+        timeout = 100, 
+    },
 
     mapping = {
         ['<C-n>'] = cmp.mapping.select_next_item(),
@@ -68,7 +77,20 @@ require'lspconfig'.clangd.setup{
 
 require'lspconfig'.rust_analyzer.setup{}
 require'toggleterm'.setup()
+local lspconfig = require('lspconfig')
 
+lspconfig.pylsp.setup{
+    settings = {
+        pylsp = {
+            plugins = {
+                black = { enabled = true },
+                mypy = { enabled = true },
+            }
+        }
+    }
+}
+
+vim.api.nvim_set_keymap('n', '<leader>f', ':Neoformat<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>gd', '<cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>gr', '<cmd>lua vim.lsp.buf.references()<CR>', { noremap = true, silent = true })
 
@@ -97,6 +119,7 @@ autocmd BufReadPost *
      \   exe "normal! g`\"" |
      \ endif
 
+let mapleader = " "
 let g:airline#extensions#tabline#enabled = 1
 let g:airline_theme = 'base16_gruvbox_dark_medium'
 let g:powerline_pycmd = 'python3'
