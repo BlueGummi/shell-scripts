@@ -62,7 +62,11 @@ cmp.setup({
     },
 
 })
+require'lspconfig'.clangd.setup{
+    cmd = { "clangd" },
+}
 
+require'lspconfig'.rust_analyzer.setup{}
 require'toggleterm'.setup()
 
 vim.api.nvim_set_keymap('n', '<leader>gd', '<cmd>lua vim.lsp.buf.definition()<CR>', { noremap = true, silent = true })
