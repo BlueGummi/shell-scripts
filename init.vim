@@ -25,6 +25,8 @@ Plug 'navarasu/onedark.nvim'
 Plug 'scottmckendry/cyberdream.nvim'
 Plug 'sbdchd/neoformat'
 Plug 'wakatime/vim-wakatime'
+Plug 'Mofiqul/vscode.nvim'
+
 call plug#end()
 
 let mapleader = " "
@@ -112,6 +114,7 @@ lspconfig.rust_analyzer.setup({
     end
 })
 
+require'lspconfig'.pylsp.setup{}
 
 vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
     border = "rounded",
@@ -179,6 +182,16 @@ vim.filetype.add({
         mdx = "markdown",
     },
 })
+
+local lsp_active = false
+
+function toggle_lsp()
+    vim.lsp.stop_client(vim.lsp.get_active_clients())
+    lsp_active = false
+    print("LSP stopped.")
+end
+
+vim.api.nvim_set_keymap('n', '<F1>', ':lua toggle_lsp()<CR>', { noremap = true, silent = true })
 
 EOF
 
