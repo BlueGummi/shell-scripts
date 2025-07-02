@@ -46,22 +46,20 @@ require'nvim-treesitter.configs'.setup {
     }
 }
 local lspconfig = require('lspconfig')
+local cmp = require('cmp')
+local cmp_lsp = require('cmp_nvim_lsp')
+
 lspconfig.clangd.setup{
+    capabilities = cmp_lsp.default_capabilities(),
     on_attach = function(client, bufnr)
-        require('cmp').setup.buffer { 
+        cmp.setup.buffer {
             sources = {
-                { name = 'nvim_lsp' },
+                { name = 'nvim_lsp', max_item_count = 10 },
             }
         }
     end,
-    capabilities = {
-        textDocument = {
-            hover = {
-                dynamicRegistration = false,
-            },
-        },
-    },
 }
+
 
 
 require'toggleterm'.setup()
@@ -163,7 +161,13 @@ cmp.setup({
     },
 
     sources = {
-        { name = 'nvim_lsp',  max_item_count = 10 },
+        {
+            name = 'nvim_lsp',
+            entry_filter = function(entry)
+                return true
+            end,
+            max_item_count = 10,
+        },
         { name = 'buffer', max_item_count = 10 },
         { name = 'path', max_item_count = 10 },
     },
@@ -188,7 +192,6 @@ local lsp_active = false
 function toggle_lsp()
     vim.lsp.stop_client(vim.lsp.get_active_clients())
     lsp_active = false
-    print("LSP stopped.")
 end
 
 vim.api.nvim_set_keymap('n', '<F1>', ':lua toggle_lsp()<CR>', { noremap = true, silent = true })
