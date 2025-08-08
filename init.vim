@@ -32,6 +32,7 @@ call plug#end()
 let mapleader = " "
 
 lua << EOF
+
 require("cyberdream").setup({
     transparent = true,
 })
@@ -60,6 +61,23 @@ lspconfig.clangd.setup{
     end,
 }
 
+local nvim_lsp = require('lspconfig')
+
+nvim_lsp.svls.setup {
+  cmd = {"svls"},
+  filetypes = {"verilog", "systemverilog", "sv"},
+  root_dir = nvim_lsp.util.root_pattern('.git', '.'),
+  settings = {},
+  on_attach = function(client, bufnr)
+  end,
+}
+
+vim.diagnostic.config({
+  virtual_text = true,
+  signs = true,       
+  underline = true,
+  update_in_insert = false,
+})
 
 
 require'toggleterm'.setup()
