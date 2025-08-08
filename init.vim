@@ -239,3 +239,11 @@ command! Wq wq
 command! WQ wq
 command! W w
 set relativenumber
+
+let g:neoformat_verilog_verible = {
+      \ 'exe': 'verible-verilog-format',
+      \ 'args': ['--indentation_spaces=4 -'],
+      \ 'stdin': 1,
+      \ }
+let g:neoformat_enabled_verilog = ['verible']
+
