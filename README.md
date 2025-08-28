@@ -1,4 +1,4 @@
-# shell-scripts - basic bash scripts + neovim config
+# shell-scripts - scripts, configs, other blah blah blah 
 
 ### init.vim is my neovim config
 
