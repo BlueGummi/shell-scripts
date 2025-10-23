@@ -6,16 +6,16 @@ Plug 'vim-airline/vim-airline'
 Plug 'powerline/powerline'
 Plug 'ryanoasis/vim-devicons'
 Plug 'vim-airline/vim-airline-themes'
-Plug 'morhetz/gruvbox'     
-Plug 'joshdick/onedark.vim' 
-Plug 'dracula/vim'          
-Plug 'sainnhe/everforest'    
+Plug 'morhetz/gruvbox'
+Plug 'joshdick/onedark.vim'
+Plug 'dracula/vim'
+Plug 'sainnhe/everforest'
 Plug 'folke/tokyonight.nvim'
 Plug 'neovim/nvim-lspconfig'
-Plug 'hrsh7th/nvim-cmp'    
+Plug 'hrsh7th/nvim-cmp'
 Plug 'hrsh7th/cmp-nvim-lsp'
-Plug 'hrsh7th/cmp-buffer'   
-Plug 'hrsh7th/cmp-path'     
+Plug 'hrsh7th/cmp-buffer'
+Plug 'hrsh7th/cmp-path'
 Plug 'hrsh7th/cmp-cmdline'
 Plug 'preservim/nerdtree'
 Plug 'akinsho/toggleterm.nvim', {'tag' : '*'}
@@ -27,17 +27,18 @@ Plug 'sbdchd/neoformat'
 Plug 'wakatime/vim-wakatime'
 Plug 'Mofiqul/vscode.nvim'
 Plug 'lewis6991/satellite.nvim'
+Plug 'nvim-telescope/telescope.nvim', { 'tag': '0.1.8' }
+Plug 'nvim-telescope/telescope-fzf-native.nvim', { 'do': 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release' }
+Plug 'nvim-lua/plenary.nvim'
+Plug 'lewis6991/gitsigns.nvim'
 
 call plug#end()
-
-set laststatus=0
 
 autocmd VimEnter * ++once call s:EnableAirlineAfterStartup()
 function! s:EnableAirlineAfterStartup()
   set laststatus=2
   AirlineRefresh
 endfunction
-
 
 let mapleader = " "
 
@@ -50,7 +51,7 @@ require("cyberdream").setup({
 require'nvim-treesitter.configs'.setup {
     ensure_installed = "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js",
     highlight = {
-        enable = true,              
+        enable = true,
     },
     indent = {
         enable = true,
@@ -84,11 +85,17 @@ nvim_lsp.svls.setup {
 
 vim.diagnostic.config({
   virtual_text = true,
-  signs = true,       
+  signs = true,
   underline = true,
   update_in_insert = false,
 })
 
+vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI"}, {
+    pattern = "*",
+    callback = function()
+        vim.diagnostic.setloclist({open=false})
+    end
+})
 
 require'toggleterm'.setup()
 local lspconfig = require'lspconfig'
@@ -129,7 +136,7 @@ require("lspconfig").rust_analyzer.setup({
     },
     root_dir = function(fname)
         return require("lspconfig.util").root_pattern("Cargo.toml", "rust-project.json", ".git")(fname)
-            or vim.fn.getcwd() 
+            or vim.fn.getcwd()
     end,
     single_file_support = true,
 })
@@ -153,7 +160,7 @@ vim.lsp.handlers["textDocument/hover"] = function(_, result, ctx, config)
     if cmp.visible() then
         cmp.close()
     end
-  
+
     if original_hover then
         original_hover(_, result, ctx, config)
     end
@@ -172,12 +179,12 @@ cmp.setup({
         expand = function(args)
         end,
     },
-    
+
     completion = {
         completeopt = 'menu,menuone,noselect',
         max_items = 10,
         min_length = 1,
-        timeout = 100, 
+        timeout = 100,
     },
     mapping = {
         ['<C-n>'] = cmp.mapping.select_next_item(),
@@ -206,7 +213,7 @@ cmp.setup({
 
 })
 
-vim.api.nvim_set_keymap('n', '<leader>f', ':Neoformat<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>ff', ':Neoformat<CR>', { noremap = true, silent = true })
 
 vim.keymap.set('t', '<Esc>', '<C-\\><C-n>')
 vim.filetype.add({
@@ -221,6 +228,72 @@ function toggle_lsp()
     vim.lsp.stop_client(vim.lsp.get_active_clients())
     lsp_active = false
 end
+
+require('gitsigns').setup{
+  on_attach = function(bufnr)
+    local gitsigns = require('gitsigns')
+
+    local function map(mode, l, r, opts)
+      opts = opts or {}
+      opts.buffer = bufnr
+      vim.keymap.set(mode, l, r, opts)
+    end
+
+    -- Navigation
+    map('n', ']c', function()
+      if vim.wo.diff then
+        vim.cmd.normal({']c', bang = true})
+      else
+        gitsigns.nav_hunk('next')
+      end
+    end)
+
+    map('n', '[c', function()
+      if vim.wo.diff then
+        vim.cmd.normal({'[c', bang = true})
+      else
+        gitsigns.nav_hunk('prev')
+      end
+    end)
+
+    -- Actions
+    map('n', '<leader>hs', gitsigns.stage_hunk)
+    map('n', '<leader>hr', gitsigns.reset_hunk)
+
+    map('v', '<leader>hs', function()
+      gitsigns.stage_hunk({ vim.fn.line('.'), vim.fn.line('v') })
+    end)
+
+    map('v', '<leader>hr', function()
+      gitsigns.reset_hunk({ vim.fn.line('.'), vim.fn.line('v') })
+    end)
+
+    map('n', '<leader>hS', gitsigns.stage_buffer)
+    map('n', '<leader>hR', gitsigns.reset_buffer)
+    map('n', '<leader>hp', gitsigns.preview_hunk)
+    map('n', '<leader>hi', gitsigns.preview_hunk_inline)
+
+    map('n', '<leader>hb', function()
+      gitsigns.blame_line({ full = true })
+    end)
+
+    map('n', '<leader>hd', gitsigns.diffthis)
+
+    map('n', '<leader>hD', function()
+      gitsigns.diffthis('~')
+    end)
+
+    map('n', '<leader>hQ', function() gitsigns.setqflist('all') end)
+    map('n', '<leader>hq', gitsigns.setqflist)
+
+    -- Toggles
+    map('n', '<leader>tb', gitsigns.toggle_current_line_blame)
+    map('n', '<leader>tw', gitsigns.toggle_word_diff)
+
+    -- Text object
+    map({'o', 'x'}, 'ih', gitsigns.select_hunk)
+  end
+}
 
 vim.api.nvim_set_keymap('n', '<F1>', ':lua toggle_lsp()<CR>', { noremap = true, silent = true })
 local uv = vim.loop
@@ -341,45 +414,52 @@ local function get_weather_icon(temp, cond)
   cond = cond:lower()
   local day = is_daytime()
 
+  local icon
   if cond:match("thunder") or cond:match("storm") or cond:match("lightning") then
-    return "⛈️"
+    icon = "⛈️"
   elseif cond:match("rain") or cond:match("drizzle") then
     if cond:match("light") then
-      return "🌦️"
+      icon = "🌦️"
     elseif cond:match("heavy") then
-      return "🌧️"
+      icon = "🌧️"
     else
-      return "🌦️"
+      icon = "🌦️"
     end
   elseif cond:match("snow") or cond:match("sleet") or cond:match("flurr") then
     if cond:match("light") then
-      return "🌨️"
+      icon = "🌨️"
     elseif cond:match("heavy") then
-      return "❄️"
+      icon = "❄️"
     else
-      return "🌨️"
+      icon = "🌨️"
     end
   elseif cond:match("hail") then
-    return "🧊"
+    icon = "🧊"
   elseif cond:match("fog") or cond:match("mist") or cond:match("haze") or cond:match("smoke") then
-    return "🌫️"
+    icon = "🌫️"
   elseif cond:match("overcast") then
-    return "☁️"
+    icon = "☁️"
   elseif cond:match("partly") or cond:match("cloud") then
-    return day and "🌤️" or "☁️"
+    icon = day and "🌤️" or "☁️"
   elseif cond:match("clear") or cond:match("sun") then
-    return day and "☀️" or "🌙"
+    icon = day and "☀️" or "🌙"
   elseif cond:match("wind") or cond:match("breeze") or cond:match("gust") then
-    return "💨"
+    icon = "💨"
   elseif cond:match("tornado") or cond:match("cyclone") or cond:match("funnel") then
-    return "🌪️"
+    icon = "🌪️"
   elseif cond:match("dust") or cond:match("sand") then
-    return "🏜️"
+    icon = "🏜️"
   elseif cond:match("ice") or cond:match("freez") then
-    return "🧊"
+    icon = "🧊"
   else
-    return "🌡️"
+    icon = "❓"
   end
+
+  if not day and icon ~= "🌙" then
+    icon = "🌙 " .. icon
+  end
+
+  return icon
 end
 
 local function update_weather_async()
@@ -421,9 +501,9 @@ function _G.StatusWeather()
   local temp, cond = last_weather:match("([%+%-]?%d+°[CF])%s*(.*)")
   local icon = get_weather_icon(temp or "", cond or "")
   if temp and cond then
-    return string.format("%s %s %s %s", icon, cond, temp, os.date("%m/%d %I:%M %p"))
+    return string.format("  %s %s  %s │ %s  ", icon, cond, temp, os.date("%I:%M %p  %m/%d"))
   else
-    return os.date("%m/%d %I:%M %p")
+    return os.date("   %m/%d  %I:%M %p  ")
   end
 end
 
@@ -443,6 +523,53 @@ vim.api.nvim_create_autocmd("VimEnter", {
   end,
 })
 
+vim.opt.statuscolumn = "%s%=%l%#LineNr#│"
+
+local M = {}
+
+local has_telescope, telescope = pcall(require, "telescope.builtin")
+if not has_telescope then
+  return M
+end
+
+local function get_project_root()
+  local root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+  if root == "" then
+    root = vim.loop.cwd()
+  end
+  return root
+end
+
+local function get_search_text()
+  local mode = vim.fn.mode()
+  local text = ""
+
+  if mode == "v" or mode == "V" then
+    vim.cmd('normal! "vy')
+    text = vim.fn.getreg('v')
+  else
+    text = vim.fn.expand("<cword>")
+  end
+
+  text = text:gsub("^%s+", ""):gsub("%s+$", "")
+  return text
+end
+
+function M.live_grep_project()
+  local root = get_project_root()
+  local default_text = get_search_text()
+
+  telescope.live_grep({
+    cwd = root,
+    default_text = default_text,
+  })
+end
+
+vim.keymap.set('v', '<leader>fg', M.live_grep_project, { noremap = true, silent = true })
+vim.keymap.set('n', '<leader>fg', M.live_grep_project, { noremap = true, silent = true })
+
+return M
+
 EOF
 
 syntax enable
@@ -454,43 +581,59 @@ nnoremap <leader>n :NERDTreeFocus<CR>
 nnoremap <C-h> :NERDTreeToggle<CR>
 nnoremap <C-f> :NERDTreeFind<CR>
 nnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
+nnoremap <F5> :let _s=@/<Bar>:%s/\s\+$//e<Bar>:let @/=_s<Bar><CR>
 
+nnoremap <leader>fd <cmd>lua require('telescope.builtin').find_files({ 
+            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1] 
+            \ })<cr> 
+
+nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers({ 
+            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1] 
+            \ })<cr> 
+
+nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags({ 
+            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1] 
+            \ })<cr> 
 
 autocmd BufReadPost *
      \ if line("'\"") > 0 && line("'\"") <= line("$") |
      \   exe "normal! g`\"" |
      \ endif
 
-let g:airline#extensions#tabline#enabled = 1
-let g:airline_theme = 'molokai'
-let g:powerline_pycmd = 'python3'
-let g:airline#extensions#tabline#formatter = 'default'
-let g:airline_powerline_fonts = 1
-let g:webdevicons_enable_airline_tabline = 1
-let g:webdevicons_enable_airline_statusline = 1
-colorscheme cyberdream 
-
 function! AirlineWeather()
   return luaeval('StatusWeather()')
 endfunction
 
-let g:airline_section_z = '%{AirlineWeather()}'
+let g:airline_powerline_fonts = 1
+let g:webdevicons_enable_airline_tabline = 1
+let g:webdevicons_enable_airline_statusline = 1
+let g:airline#extensions#tabline#enabled = 1
+let g:airline#extensions#tabline#formatter = 'default'
+let g:airline_theme = 'molokai'
+let g:powerline_pycmd = 'python3'
+let g:airline_skip_empty_sections = 1
+
+call airline#parts#define_function('airline_weather', 'AirlineWeather')
+let g:airline_section_x = airline#section#create_right(['airline_weather'])
+
+colorscheme cyberdream
 
 set undofile
 set undodir=~/.local/share/nvim/undo
-set statusline=%#PmenuSel#%{powerline#statusline()}%#Normal#
 set laststatus=2
 set termguicolors
 set number
-set tabstop=4 
+set relativenumber
+set signcolumn=yes
+set tabstop=4
 set shiftwidth=4
-set expandtab 
+set expandtab
 set autoindent
 set smartindent
+
 command! Wq wq
 command! WQ wq
 command! W w
-set relativenumber
 
 let g:neoformat_verilog_verible = {
       \ 'exe': 'verible-verilog-format',
