@@ -324,8 +324,8 @@ local function save_weather_cache()
 end
 
 local function parse_sun_times(data)
-  -- wttr.in?format=%S+%s gives sunrise/sunset in HH:MM format (local time)
-  local sr, ss = data:match("(%d+:%d+)%s+(%d+:%d+)")
+  -- wttr.in?format=%S+%s gives sunrise/sunset in HH:MM:SS format (local time)
+  local sr, ss = data:match("(%d+:%d+:%d*):?%s+(%d+:%d+:%d*):?")
   if sr and ss then
     sunrise, sunset = sr, ss
     return true
@@ -369,7 +369,7 @@ local function update_sun_times()
   local data = ""
   local handle
   handle = uv.spawn("curl", {
-    args = { "-s", "--max-time", "3", "wttr.in?format=%S+%s" },
+    args = { "-s", "wttr.in?format=%S+%s" },
     stdio = { nil, stdout, stderr },
   }, function(code)
     vim.defer_fn(function()
@@ -472,7 +472,7 @@ local function update_weather_async()
     local data = ""
     local handle
     handle = uv.spawn("curl", {
-      args = { "-s", "--max-time", "2", "wttr.in?format=%t+%C" },
+      args = { "-s", "wttr.in?format=%t+%C" },
       stdio = { nil, stdout, stderr },
     }, function(code)
       vim.defer_fn(function()
@@ -494,7 +494,7 @@ local function update_weather_async()
   end
 
   fetch_weather()
-  weather_timer:start(600000, 600000, fetch_weather)
+  weather_timer:start(60000, 60000, fetch_weather)
 end
 
 function _G.StatusWeather()
@@ -634,6 +634,7 @@ set smartindent
 command! Wq wq
 command! WQ wq
 command! W w
+command! Q q
 
 let g:neoformat_verilog_verible = {
       \ 'exe': 'verible-verilog-format',
