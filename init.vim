@@ -31,6 +31,7 @@ Plug 'nvim-telescope/telescope.nvim', { 'tag': '0.1.8' }
 Plug 'nvim-telescope/telescope-fzf-native.nvim', { 'do': 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release' }
 Plug 'nvim-lua/plenary.nvim'
 Plug 'lewis6991/gitsigns.nvim'
+Plug 'stevearc/aerial.nvim'
 
 call plug#end()
 
@@ -43,6 +44,16 @@ endfunction
 let mapleader = " "
 
 lua << EOF
+
+require('aerial').setup({
+  layout = {
+    default_direction = 'right',
+    min_width = 30,
+  },
+  show_guides = true,
+  nerd_font = true,
+})
+vim.keymap.set('n', '<leader>a', '<cmd>AerialToggle! right<CR>', { desc = "Toggle symbols outline" })
 
 require("cyberdream").setup({
     transparent = true,
@@ -66,7 +77,7 @@ lspconfig.clangd.setup{
     on_attach = function(client, bufnr)
         cmp.setup.buffer {
             sources = {
-                { name = 'nvim_lsp', max_item_count = 10 },
+                { name = 'nvim_lsp', max_item_count = 15 },
             }
         }
     end,
@@ -203,8 +214,8 @@ cmp.setup({
             end,
             max_item_count = 10,
         },
-        { name = 'buffer', max_item_count = 10 },
-        { name = 'path', max_item_count = 10 },
+        { name = 'buffer', max_item_count = 20 },
+        { name = 'path', max_item_count = 20 },
     },
     window = {
         completion = cmp.config.window.bordered(),
@@ -572,6 +583,66 @@ return M
 
 EOF
 
+function! ConvertAllCommentsToBlocks() range
+  let l:start = a:firstline
+  let l:end = a:lastline
+  let l:lines = getline(l:start, l:end)
+
+  let l:result = []
+  let l:block_buffer = []
+  let l:in_block = 0
+
+  for l:line in l:lines
+    " CASE 1: full-line comment
+    if l:line =~ '^\s*//'
+      let l:comment_text = substitute(l:line, '^\s*//\s*', '', '')
+      call add(l:block_buffer, l:comment_text)
+      let l:in_block = 1
+      continue
+    endif
+
+    " CASE 2: line of code with inline comment
+    if l:line =~ '//'
+      " flush existing block if any
+      if l:in_block && !empty(l:block_buffer)
+        call add(l:result, '/* ' . join(l:block_buffer, ' ') . ' */')
+        let l:block_buffer = []
+        let l:in_block = 0
+      endif
+      let l:match_pos = match(l:line, '//')
+      let l:prefix = strpart(l:line, 0, l:match_pos)
+      let l:comment_part = substitute(strpart(l:line, l:match_pos), '^//\s*', '', '')
+      call add(l:result, l:prefix . '/* ' . l:comment_part . ' */')
+      continue
+    endif
+
+    " CASE 3: blank line or normal code line
+    if l:in_block
+      " flush block buffer when leaving comment run
+      if !empty(l:block_buffer)
+        call add(l:result, '/* ' . join(l:block_buffer, ' ') . ' */')
+        let l:block_buffer = []
+      endif
+      let l:in_block = 0
+    endif
+
+    call add(l:result, l:line)
+  endfor
+
+  " Flush final block at end of range
+  if !empty(l:block_buffer)
+    call add(l:result, '/* ' . join(l:block_buffer, ' ') . ' */')
+  endif
+
+  " Replace lines in buffer
+  call setline(l:start, l:result)
+  if len(l:result) < (l:end - l:start + 1)
+    call deletebufline('%', l:start + len(l:result), l:end)
+  endif
+endfunction
+
+vnoremap <leader>c :<C-u>call ConvertAllCommentsToBlocks()<CR>
+
 syntax enable
 if !isdirectory(expand("~/.local/share/nvim/undo"))
   call mkdir(expand("~/.local/share/nvim/undo"), "p")
@@ -615,7 +686,6 @@ let g:airline_skip_empty_sections = 1
 
 call airline#parts#define_function('airline_weather', 'AirlineWeather')
 let g:airline_section_x = airline#section#create_right(['airline_weather'])
-
 colorscheme cyberdream
 
 set undofile

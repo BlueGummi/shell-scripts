@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-THRESHOLD=120  
+THRESHOLD=10 
 
 while true; do
     for f in ~/.last_term_activity_*; do
