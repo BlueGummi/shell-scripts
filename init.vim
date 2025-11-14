@@ -6,6 +6,7 @@ Plug 'vim-airline/vim-airline'
 Plug 'powerline/powerline'
 Plug 'ryanoasis/vim-devicons'
 Plug 'vim-airline/vim-airline-themes'
+"Plug 'whonore/Coqtail'
 Plug 'morhetz/gruvbox'
 Plug 'joshdick/onedark.vim'
 Plug 'dracula/vim'
@@ -68,11 +69,11 @@ require'nvim-treesitter.configs'.setup {
         enable = true,
     }
 }
-local lspconfig = require('lspconfig')
+
 local cmp = require('cmp')
 local cmp_lsp = require('cmp_nvim_lsp')
 
-lspconfig.clangd.setup{
+vim.lsp.config("clangd", {
     capabilities = cmp_lsp.default_capabilities(),
     on_attach = function(client, bufnr)
         cmp.setup.buffer {
@@ -81,18 +82,17 @@ lspconfig.clangd.setup{
             }
         }
     end,
-}
+})
 
-local nvim_lsp = require('lspconfig')
-
-nvim_lsp.svls.setup {
-  cmd = {"svls"},
-  filetypes = {"verilog", "systemverilog", "sv"},
-  root_dir = nvim_lsp.util.root_pattern('.git', '.'),
-  settings = {},
-  on_attach = function(client, bufnr)
-  end,
-}
+--
+--vim.lsp.setup("svls", {
+--  cmd = {"svls"},
+--  filetypes = {"verilog", "systemverilog", "sv"},
+--  root_dir = nvim_lsp.util.root_pattern('.git', '.'),
+--  settings = {},
+--  on_attach = function(client, bufnr)
+--  end,
+--})
 
 vim.diagnostic.config({
   virtual_text = true,
@@ -109,13 +109,13 @@ vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI"}, {
 })
 
 require'toggleterm'.setup()
-local lspconfig = require'lspconfig'
 
 local on_attach = function(client)
     require'completion'.on_attach(client)
 end
-lspconfig.bashls.setup{}
-require("lspconfig").rust_analyzer.setup({
+vim.lsp.config("bashls", {})
+
+vim.lsp.config("rust_analyzer", {
     settings = {
         ["rust-analyzer"] = {
             diagnostics = {
@@ -152,13 +152,13 @@ require("lspconfig").rust_analyzer.setup({
     single_file_support = true,
 })
 
-lspconfig.rust_analyzer.setup({
+vim.lsp.config("rust_analyzer", {
     on_attach = function(client, bufnr)
         vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
     end
 })
 
-require'lspconfig'.pylsp.setup{}
+vim.lsp.config("pylsp", {})
 
 vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
     border = "rounded",
@@ -706,9 +706,10 @@ command! WQ wq
 command! W w
 command! Q q
 
-let g:neoformat_verilog_verible = {
-      \ 'exe': 'verible-verilog-format',
-      \ 'args': ['--indentation_spaces=4 -'],
-      \ 'stdin': 1,
-      \ }
-let g:neoformat_enabled_verilog = ['verible']
+"
+"let g:neoformat_verilog_verible = {
+"      \ 'exe': 'verible-verilog-format',
+"      \ 'args': ['--indentation_spaces=4 -'],
+"      \ 'stdin': 1,
+"      \ }
+"let g:neoformat_enabled_verilog = ['verible']
