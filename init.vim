@@ -83,6 +83,8 @@ vim.lsp.config("clangd", {
         }
     end,
 })
+vim.lsp.enable({"clangd"})
+
 
 --
 --vim.lsp.setup("svls", {
@@ -114,6 +116,8 @@ local on_attach = function(client)
     require'completion'.on_attach(client)
 end
 vim.lsp.config("bashls", {})
+vim.lsp.enable({"bashls"})
+
 
 vim.lsp.config("rust_analyzer", {
     settings = {
@@ -157,8 +161,10 @@ vim.lsp.config("rust_analyzer", {
         vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
     end
 })
+vim.lsp.enable({"rust_analyzer"})
 
 vim.lsp.config("pylsp", {})
+vim.lsp.enable({"pylsp"})
 
 vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
     border = "rounded",
