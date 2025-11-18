@@ -20,7 +20,6 @@ Plug 'hrsh7th/cmp-path'
 Plug 'hrsh7th/cmp-cmdline'
 Plug 'preservim/nerdtree'
 Plug 'akinsho/toggleterm.nvim', {'tag' : '*'}
-Plug 'williamboman/nvim-lsp-installer'
 Plug 'tribela/transparent.nvim'
 Plug 'navarasu/onedark.nvim'
 Plug 'scottmckendry/cyberdream.nvim'
@@ -33,6 +32,7 @@ Plug 'nvim-telescope/telescope-fzf-native.nvim', { 'do': 'cmake -S. -Bbuild -DCM
 Plug 'nvim-lua/plenary.nvim'
 Plug 'lewis6991/gitsigns.nvim'
 Plug 'stevearc/aerial.nvim'
+Plug 'mrcjkb/rustaceanvim'
 
 call plug#end()
 
@@ -112,20 +112,31 @@ vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI"}, {
 
 require'toggleterm'.setup()
 
-local on_attach = function(client)
-    require'completion'.on_attach(client)
-end
 vim.lsp.config("bashls", {})
 vim.lsp.enable({"bashls"})
 
+vim.g.rustaceanvim = {
+  tools = {
+    runnables = {
+      use_telescope = true,
+    },
+    inlay_hints = {
+      auto = true,
+      show_parameter_hints = false,
+      parameter_hints_prefix = "",
+      other_hints_prefix = "",
+    },
+  },
 
-vim.lsp.config("rust_analyzer", {
+  server = {
+    on_attach = on_attach,
     settings = {
+
         ["rust-analyzer"] = {
             diagnostics = {
                 enableExperimental = true,
             },
-            checkOnSave = {
+            check = {
                 command = "clippy",
             },
             cargo = {
@@ -149,19 +160,8 @@ vim.lsp.config("rust_analyzer", {
             },
         },
     },
-    root_dir = function(fname)
-        return require("lspconfig.util").root_pattern("Cargo.toml", "rust-project.json", ".git")(fname)
-            or vim.fn.getcwd()
-    end,
-    single_file_support = true,
-})
-
-vim.lsp.config("rust_analyzer", {
-    on_attach = function(client, bufnr)
-        vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
-    end
-})
-vim.lsp.enable({"rust_analyzer"})
+  },
+}
 
 vim.lsp.config("pylsp", {})
 vim.lsp.enable({"pylsp"})
@@ -238,6 +238,7 @@ vim.filetype.add({
         mdx = "markdown",
     },
 })
+
 
 local lsp_active = false
 
