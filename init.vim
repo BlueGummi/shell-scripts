@@ -116,23 +116,13 @@ vim.lsp.config("bashls", {})
 vim.lsp.enable({"bashls"})
 
 vim.g.rustaceanvim = {
-  tools = {
-    runnables = {
-      use_telescope = true,
-    },
-    inlay_hints = {
-      auto = true,
-      show_parameter_hints = false,
-      parameter_hints_prefix = "",
-      other_hints_prefix = "",
-    },
-  },
-
   server = {
     on_attach = on_attach,
     settings = {
 
         ["rust-analyzer"] = {
+            lru = { capacity = 512 },
+            updates = { rateLimit = 0 },
             diagnostics = {
                 enableExperimental = true,
             },
