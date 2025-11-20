@@ -697,6 +697,10 @@ set shiftwidth=4
 set expandtab
 set autoindent
 set smartindent
+set cursorline
+
+highlight CursorLineNr ctermfg=Yellow guifg=Yellow
+highlight CursorLine ctermbg=NONE guibg=NONE
 
 command! Wq wq
 command! WQ wq
