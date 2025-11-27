@@ -27,7 +27,7 @@ Plug 'sbdchd/neoformat'
 Plug 'wakatime/vim-wakatime'
 Plug 'Mofiqul/vscode.nvim'
 Plug 'lewis6991/satellite.nvim'
-Plug 'nvim-telescope/telescope.nvim', { 'tag': '0.1.8' }
+Plug 'nvim-telescope/telescope.nvim'
 Plug 'nvim-telescope/telescope-fzf-native.nvim', { 'do': 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release' }
 Plug 'nvim-lua/plenary.nvim'
 Plug 'lewis6991/gitsigns.nvim'
