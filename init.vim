@@ -33,6 +33,9 @@ Plug 'nvim-lua/plenary.nvim'
 Plug 'lewis6991/gitsigns.nvim'
 Plug 'stevearc/aerial.nvim'
 Plug 'mrcjkb/rustaceanvim'
+Plug 'Scysta/pink-panic.nvim'
+Plug 'rktjmp/lush.nvim'
+Plug 'folke/todo-comments.nvim'
 
 call plug#end()
 
@@ -45,6 +48,27 @@ endfunction
 let mapleader = " "
 
 lua << EOF
+
+require("todo-comments").setup {
+  signs = true,
+  keywords = {
+    FIX = { icon = " ", color = "error" },
+    TODO = { icon = " ", color = "info" },
+    HACK = { icon = " ", color = "warning" },
+    WARN = { icon = " ", color = "warning" },
+    PERF = { icon = " ", color = "hint" },
+    NOTE = { icon = " ", color = "hint" },
+    BUG =  { icon = " ", color = "error" },
+  },
+}
+
+require('nvim-treesitter.configs').setup {
+  highlight = {
+    enable = true,
+    additional_vim_regex_highlighting = true,  -- enables built-in TODO highlights
+  }
+}
+
 
 require('aerial').setup({
   layout = {
