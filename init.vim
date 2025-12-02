@@ -106,6 +106,10 @@ vim.lsp.config("clangd", {
             }
         }
     end,
+      init_options = {
+    fallbackFlags = { "-std=c++20" }
+  },
+
 })
 vim.lsp.enable({"clangd"})
 
