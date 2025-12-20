@@ -259,10 +259,8 @@ function toggle_lsp()
 end
 
 local lang = vim.treesitter.language.get_lang(vim.bo.filetype)
+pcall(vim.treesitter.start)
 
-if not vim.treesitter.get_parser(0, lang, { error = false }) then
-  vim.treesitter.start()
-end
 
 require('gitsigns').setup{
   on_attach = function(bufnr)
