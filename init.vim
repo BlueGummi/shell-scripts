@@ -73,6 +73,15 @@ require('nvim-treesitter').setup {
   },
 }
 
+vim.api.nvim_create_autocmd("BufReadPost", {
+  callback = function()
+    vim.schedule(function()
+      pcall(vim.treesitter.start)
+    end)
+  end,
+})
+
+
 require('aerial').setup({
   layout = {
     default_direction = 'right',
@@ -258,8 +267,6 @@ function toggle_lsp()
     lsp_active = false
 end
 
-local lang = vim.treesitter.language.get_lang(vim.bo.filetype)
-pcall(vim.treesitter.start)
 
 
 require('gitsigns').setup{
@@ -710,7 +717,7 @@ let g:airline_section_x = airline#section#create_right(['airline_weather'])
 colorscheme cyberdream
 
 set undofile
-set undodir=~/.local/share/nvim/undo
+set undodir^=~/.local/share/nvim/undo//
 set laststatus=2
 set termguicolors
 set number
