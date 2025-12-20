@@ -6,7 +6,7 @@ Plug 'vim-airline/vim-airline'
 Plug 'powerline/powerline'
 Plug 'ryanoasis/vim-devicons'
 Plug 'vim-airline/vim-airline-themes'
-"Plug 'whonore/Coqtail'
+Plug 'whonore/Coqtail'
 Plug 'morhetz/gruvbox'
 Plug 'joshdick/onedark.vim'
 Plug 'dracula/vim'
@@ -49,6 +49,7 @@ let mapleader = " "
 
 lua << EOF
 
+
 require("todo-comments").setup {
   signs = true,
   keywords = {
@@ -62,13 +63,15 @@ require("todo-comments").setup {
   },
 }
 
-require('nvim-treesitter.configs').setup {
+require('nvim-treesitter').setup {
+  ensure_installed = "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js",
   highlight = {
     enable = true,
-    additional_vim_regex_highlighting = true,  -- enables built-in TODO highlights
-  }
+  },
+  indent = {
+    enable = true,
+  },
 }
-
 
 require('aerial').setup({
   layout = {
@@ -83,16 +86,6 @@ vim.keymap.set('n', '<leader>a', '<cmd>AerialToggle! right<CR>', { desc = "Toggl
 require("cyberdream").setup({
     transparent = true,
 })
-
-require'nvim-treesitter.configs'.setup {
-    ensure_installed = "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js",
-    highlight = {
-        enable = true,
-    },
-    indent = {
-        enable = true,
-    }
-}
 
 local cmp = require('cmp')
 local cmp_lsp = require('cmp_nvim_lsp')
@@ -236,7 +229,7 @@ cmp.setup({
             entry_filter = function(entry)
                 return true
             end,
-            max_item_count = 10,
+            max_item_count = 20,
         },
         { name = 'buffer', max_item_count = 20 },
         { name = 'path', max_item_count = 20 },
@@ -263,6 +256,12 @@ local lsp_active = false
 function toggle_lsp()
     vim.lsp.stop_client(vim.lsp.get_active_clients())
     lsp_active = false
+end
+
+local lang = vim.treesitter.language.get_lang(vim.bo.filetype)
+
+if not vim.treesitter.get_parser(0, lang, { error = false }) then
+  vim.treesitter.start()
 end
 
 require('gitsigns').setup{
@@ -607,7 +606,6 @@ vim.keymap.set('n', '<leader>fg', M.live_grep_project, { noremap = true, silent 
 return M
 
 EOF
-
 function! ConvertAllCommentsToBlocks() range
   let l:start = a:firstline
   let l:end = a:lastline
