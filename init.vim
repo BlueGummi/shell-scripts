@@ -108,10 +108,10 @@ vim.lsp.config("clangd", {
             }
         }
     end,
-      init_options = {
-    fallbackFlags = { "-std=c++20" }
-  },
-
+--      init_options = {
+--    fallbackFlags = { "-std=c++20" }
+--  },
+--
 })
 vim.lsp.enable({"clangd"})
 
@@ -186,22 +186,12 @@ vim.g.rustaceanvim = {
 vim.lsp.config("pylsp", {})
 vim.lsp.enable({"pylsp"})
 
+
 vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
     border = "rounded",
 })
 
-local original_hover = vim.lsp.handlers["textDocument/hover"]
-
-vim.lsp.handlers["textDocument/hover"] = function(_, result, ctx, config)
-    local cmp = require'cmp'
-    if cmp.visible() then
-        cmp.close()
-    end
-
-    if original_hover then
-        original_hover(_, result, ctx, config)
-    end
-end
+vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(vim.lsp.handlers.signature_help, { border = 'rounded' })
 
 local lsp_buf_hover = function()
     if vim.fn.pumvisible() == 1 then
@@ -243,10 +233,17 @@ cmp.setup({
         { name = 'buffer', max_item_count = 20 },
         { name = 'path', max_item_count = 20 },
     },
-    window = {
-        completion = cmp.config.window.bordered(),
-        documentation = cmp.config.window.bordered(),
-    },
+    
+window = {
+  completion = cmp.config.window.bordered({
+    border = "rounded",
+    winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,CursorLine:PmenuSel,Search:None",
+  }),
+  documentation = cmp.config.window.bordered({
+    border = "rounded",
+    winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+  }),
+},
 
 })
 
