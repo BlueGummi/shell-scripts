@@ -45,6 +45,8 @@ function! s:EnableAirlineAfterStartup()
   AirlineRefresh
 endfunction
 
+autocmd BufNewFile,BufRead *.sh set filetype=sh
+
 let mapleader = " "
 
 lua << EOF
@@ -142,8 +144,11 @@ vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI"}, {
 
 require'toggleterm'.setup()
 
-vim.lsp.config("bashls", {})
-vim.lsp.enable({"bashls"})
+vim.lsp.config.bashls = {
+  cmd = { 'bash-language-server', 'start' },
+  filetypes = { 'bash', 'sh' }
+}
+vim.lsp.enable 'bashls'
 
 vim.g.rustaceanvim = {
   server = {
@@ -260,7 +265,7 @@ vim.filetype.add({
 local lsp_active = false
 
 function toggle_lsp()
-    vim.lsp.stop_client(vim.lsp.get_active_clients())
+    vim.lsp.stop_client(vim.lsp.get_clients())
     lsp_active = false
 end
 
@@ -734,6 +739,7 @@ command! Wq wq
 command! WQ wq
 command! W w
 command! Q q
+
 
 "
 "let g:neoformat_verilog_verible = {
