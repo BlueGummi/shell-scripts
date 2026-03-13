@@ -1,11 +1,15 @@
 call plug#begin('~/.local/share/nvim/plugged')
 
+Plug 'folke/which-key.nvim'
+Plug 'stevearc/stickybuf.nvim'
+Plug 'zbirenbaum/copilot.lua'
 Plug 'tpope/vim-sensible'
 Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
 Plug 'vim-airline/vim-airline'
 Plug 'powerline/powerline'
 Plug 'ryanoasis/vim-devicons'
 Plug 'vim-airline/vim-airline-themes'
+Plug 'whonore/Coqtail'
 Plug 'morhetz/gruvbox'
 Plug 'joshdick/onedark.vim'
 Plug 'dracula/vim'
@@ -19,7 +23,6 @@ Plug 'hrsh7th/cmp-path'
 Plug 'hrsh7th/cmp-cmdline'
 Plug 'preservim/nerdtree'
 Plug 'akinsho/toggleterm.nvim', {'tag' : '*'}
-Plug 'williamboman/nvim-lsp-installer'
 Plug 'tribela/transparent.nvim'
 Plug 'navarasu/onedark.nvim'
 Plug 'scottmckendry/cyberdream.nvim'
@@ -27,10 +30,15 @@ Plug 'sbdchd/neoformat'
 Plug 'wakatime/vim-wakatime'
 Plug 'Mofiqul/vscode.nvim'
 Plug 'lewis6991/satellite.nvim'
-Plug 'nvim-telescope/telescope.nvim', { 'tag': '0.1.8' }
+Plug 'nvim-telescope/telescope.nvim'
 Plug 'nvim-telescope/telescope-fzf-native.nvim', { 'do': 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release' }
 Plug 'nvim-lua/plenary.nvim'
 Plug 'lewis6991/gitsigns.nvim'
+Plug 'stevearc/aerial.nvim'
+Plug 'mrcjkb/rustaceanvim'
+Plug 'Scysta/pink-panic.nvim'
+Plug 'rktjmp/lush.nvim'
+Plug 'folke/todo-comments.nvim'
 
 call plug#end()
 
@@ -40,48 +48,224 @@ function! s:EnableAirlineAfterStartup()
   AirlineRefresh
 endfunction
 
+autocmd BufNewFile,BufRead *.sh set filetype=sh
+
 let mapleader = " "
 
 lua << EOF
+
+local copilot = require("copilot")
+
+copilot.setup({
+  suggestion = {
+    enabled = true,
+    auto_trigger = true,
+    debounce = 60,
+    keymap = { accept = false },
+  },
+  panel = { enabled = false },
+  server_opts_overrides = {
+    settings = {
+      advanced = {
+        inlineSuggestCount = 1,
+        listCount = 3,
+      }
+    }
+  }
+})
+
+local suggestion = require("copilot.suggestion")
+
+local function after_member_access()
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local before_cursor = line:sub(1, col)
+  return before_cursor:match("[%.%-:][%w_]*$") ~= nil
+end
+
+local function should_suppress_copilot()
+  local line = vim.api.nvim_get_current_line()
+  local is_blank = line:match("^%s*$") ~= nil
+  return is_blank or after_member_access()
+end
+
+vim.keymap.set("i", "<Tab>", function()
+  local line = vim.api.nvim_get_current_line()
+  local is_blank = line:match("^%s*$") ~= nil
+
+  if suggestion.is_visible() and not is_blank then
+    suggestion.accept_line()
+    return ""
+  elseif require("cmp").visible() then
+    require("cmp").confirm({ select = true })
+    return ""
+  else
+    return "<Tab>"
+  end
+end, { expr = true, silent = true, desc = "Accept copilot line / confirm completion / indent" })
+
+vim.keymap.set("i", "<C-j>", function()
+  if suggestion.is_visible() then
+    suggestion.accept()
+  end
+end, { silent = true, desc = "Accept full copilot suggestion" })
+
+local state_path = "/tmp/nvim_copilot_disabled"
+
+local function load_copilot_state()
+  local f = io.open(state_path, "r")
+  if f then
+    local val = f:read("*a"):gsub("\n", "")
+    f:close()
+    return val == "true"
+  end
+  return false
+end
+
+local function save_copilot_state(disabled)
+  local f = io.open(state_path, "w")
+  if f then
+    f:write(tostring(disabled))
+    f:close()
+  end
+end
+
+local copilot_user_disabled = load_copilot_state()
+
+vim.keymap.set("n", "<leader>d", function()
+  copilot_user_disabled = not copilot_user_disabled
+  save_copilot_state(copilot_user_disabled)
+  if copilot_user_disabled then
+    suggestion.dismiss()
+    vim.b.copilot_suggestion_auto_trigger = false
+  else
+    vim.b.copilot_suggestion_auto_trigger = true
+  end
+  vim.cmd("redrawstatus")
+end, { desc = "Toggle Copilot suggestions" })
+
+vim.api.nvim_create_autocmd("VimEnter", {
+  callback = function()
+    if copilot_user_disabled then
+      vim.b.copilot_suggestion_auto_trigger = false
+    end
+    vim.cmd("redrawstatus")
+  end,
+})
+
+vim.api.nvim_create_autocmd({ "InsertEnter", "CursorMovedI", "TextChangedI" }, {
+  callback = function()
+    if copilot_user_disabled or should_suppress_copilot() then
+      suggestion.dismiss()
+      vim.b.copilot_suggestion_auto_trigger = false
+    else
+      vim.b.copilot_suggestion_auto_trigger = true
+    end
+  end,
+})
+
+require("todo-comments").setup {
+  signs = true,
+  keywords = {
+    FIX = { icon = " ", color = "error" },
+    TODO = { icon = " ", color = "info" },
+    HACK = { icon = " ", color = "warning" },
+    WARN = { icon = " ", color = "warning" },
+    PERF = { icon = " ", color = "hint" },
+    NOTE = { icon = " ", color = "hint" },
+    BUG =  { icon = " ", color = "error" },
+  },
+}
+
+vim.api.nvim_create_autocmd({"InsertEnter", "InsertLeave"}, {
+  callback = function()
+    vim.cmd("redrawstatus")
+  end,
+})
+
+function _G.CopilotStatus()
+  local auto = vim.b.copilot_suggestion_auto_trigger
+  local disabled = (auto == false) or (auto == nil and copilot_user_disabled)
+  if disabled then
+    return " "
+  else
+    return " "
+  end
+end
+
+require('nvim-treesitter').setup {
+  ensure_installed = { "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js" },
+  highlight = {
+    enable = true,
+  },
+  indent = {
+    enable = true,
+  },
+}
+
+vim.api.nvim_create_autocmd("BufReadPost", {
+  callback = function()
+    vim.schedule(function()
+      pcall(vim.treesitter.start)
+    end)
+  end,
+})
+
+require('aerial').setup({
+  filter_kind = false,
+  layout = {
+    default_direction = 'right',
+    min_width = 30,
+  },
+  show_guides = true,
+  nerd_font = true,
+  post_parse_symbol = nil,
+  manage_folds = false,
+  link_folds_to_tree = false,
+  link_tree_to_cursor = true,
+  arrange_symbols = function(symbols, opts)
+    local grouped = { Struct = {}, Enum = {}, Function = {}, Other = {} }
+    for _, sym in ipairs(symbols) do
+      if grouped[sym.kind] then
+        table.insert(grouped[sym.kind], sym)
+      else
+        table.insert(grouped.Other, sym)
+      end
+    end
+    local result = {}
+    for _, group in ipairs({ "Struct", "Enum", "Function", "Other" }) do
+      for _, sym in ipairs(grouped[group]) do
+        table.insert(result, sym)
+      end
+    end
+    return result
+  end,
+})
+
+vim.keymap.set('n', '<leader>aa', '<cmd>AerialToggle! right<CR>', { desc = "Toggle symbols outline" })
+vim.keymap.set('n', '<leader>as', '<cmd>Telescope aerial<CR>', { desc = "Search symbols (Telescope)" })
 
 require("cyberdream").setup({
     transparent = true,
 })
 
-require'nvim-treesitter.configs'.setup {
-    ensure_installed = "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js",
-    highlight = {
-        enable = true,
-    },
-    indent = {
-        enable = true,
-    }
-}
-local lspconfig = require('lspconfig')
 local cmp = require('cmp')
 local cmp_lsp = require('cmp_nvim_lsp')
 
-lspconfig.clangd.setup{
+vim.lsp.config("clangd", {
     capabilities = cmp_lsp.default_capabilities(),
     on_attach = function(client, bufnr)
         cmp.setup.buffer {
             sources = {
-                { name = 'nvim_lsp', max_item_count = 10 },
+                { name = 'nvim_lsp', max_item_count = 15 },
             }
         }
     end,
-}
-
-local nvim_lsp = require('lspconfig')
-
-nvim_lsp.svls.setup {
-  cmd = {"svls"},
-  filetypes = {"verilog", "systemverilog", "sv"},
-  root_dir = nvim_lsp.util.root_pattern('.git', '.'),
-  settings = {},
-  on_attach = function(client, bufnr)
-  end,
-}
+  init_options = {
+    fallbackFlags = { "--background-index" }
+  },
+})
+vim.lsp.enable({"clangd"})
 
 vim.diagnostic.config({
   virtual_text = true,
@@ -98,19 +282,24 @@ vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI"}, {
 })
 
 require'toggleterm'.setup()
-local lspconfig = require'lspconfig'
 
-local on_attach = function(client)
-    require'completion'.on_attach(client)
-end
-lspconfig.bashls.setup{}
-require("lspconfig").rust_analyzer.setup({
+vim.lsp.config.bashls = {
+  cmd = { 'bash-language-server', 'start' },
+  filetypes = { 'bash', 'sh' }
+}
+vim.lsp.enable 'bashls'
+
+vim.g.rustaceanvim = {
+  server = {
+    on_attach = on_attach,
     settings = {
         ["rust-analyzer"] = {
+            lru = { capacity = 512 },
+            updates = { rateLimit = 0 },
             diagnostics = {
                 enableExperimental = true,
             },
-            checkOnSave = {
+            check = {
                 command = "clippy",
             },
             cargo = {
@@ -134,37 +323,17 @@ require("lspconfig").rust_analyzer.setup({
             },
         },
     },
-    root_dir = function(fname)
-        return require("lspconfig.util").root_pattern("Cargo.toml", "rust-project.json", ".git")(fname)
-            or vim.fn.getcwd()
-    end,
-    single_file_support = true,
-})
+  },
+}
 
-lspconfig.rust_analyzer.setup({
-    on_attach = function(client, bufnr)
-        vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
-    end
-})
-
-require'lspconfig'.pylsp.setup{}
+vim.lsp.config("pylsp", {})
+vim.lsp.enable({"pylsp"})
 
 vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
     border = "rounded",
 })
 
-local original_hover = vim.lsp.handlers["textDocument/hover"]
-
-vim.lsp.handlers["textDocument/hover"] = function(_, result, ctx, config)
-    local cmp = require'cmp'
-    if cmp.visible() then
-        cmp.close()
-    end
-
-    if original_hover then
-        original_hover(_, result, ctx, config)
-    end
-end
+vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(vim.lsp.handlers.signature_help, { border = 'rounded' })
 
 local lsp_buf_hover = function()
     if vim.fn.pumvisible() == 1 then
@@ -201,21 +370,27 @@ cmp.setup({
             entry_filter = function(entry)
                 return true
             end,
-            max_item_count = 10,
+            max_item_count = 20,
         },
-        { name = 'buffer', max_item_count = 10 },
-        { name = 'path', max_item_count = 10 },
-    },
-    window = {
-        completion = cmp.config.window.bordered(),
-        documentation = cmp.config.window.bordered(),
+        { name = 'buffer', max_item_count = 20 },
+        { name = 'path', max_item_count = 20 },
     },
 
+    window = {
+      completion = cmp.config.window.bordered({
+        border = "rounded",
+        winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,CursorLine:PmenuSel,Search:None",
+      }),
+      documentation = cmp.config.window.bordered({
+        border = "rounded",
+        winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+      }),
+    },
 })
 
-vim.api.nvim_set_keymap('n', '<leader>ff', ':Neoformat<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>ff', ':Neoformat<CR>', { noremap = true, silent = true, desc = "Format file (Neoformat)" })
 
-vim.keymap.set('t', '<Esc>', '<C-\\><C-n>')
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = "Exit terminal mode" })
 vim.filetype.add({
     extension = {
         mdx = "markdown",
@@ -225,18 +400,41 @@ vim.filetype.add({
 local lsp_active = false
 
 function toggle_lsp()
-    vim.lsp.stop_client(vim.lsp.get_active_clients())
+    vim.lsp.stop_client(vim.lsp.get_clients())
     lsp_active = false
 end
+
+require('which-key').setup({
+  delay = 400,
+})
+
+-- which-key group labels
+local wk = require('which-key')
+wk.add({
+  { "<leader>a", group = "aerial/symbols" },
+  { "<leader>f", group = "find/format" },
+  { "<leader>h", group = "git hunks" },
+  { "<leader>t", group = "toggles" },
+  { "<leader>g", desc = "NERDTree: find current file" },
+  { "<leader>G", desc = "NERDTree: toggle" },
+  { "<leader>n", desc = "NERDTree: focus" },
+  { "<leader>e", desc = "Toggle terminal" },
+  { "<leader>d", desc = "Toggle Copilot" },
+  { "<leader>[", desc = "Previous buffer" },
+  { "<leader>]", desc = "Next buffer" },
+  { "<leader>c", desc = "Convert // comments to /* */ (visual)", mode = "v" },
+  { "]c", desc = "Next git hunk" },
+  { "[c", desc = "Prev git hunk" },
+  { "<F1>", desc = "Stop LSP clients" },
+  { "<F5>", desc = "Strip trailing whitespace" },
+})
 
 require('gitsigns').setup{
   on_attach = function(bufnr)
     local gitsigns = require('gitsigns')
 
-    local function map(mode, l, r, opts)
-      opts = opts or {}
-      opts.buffer = bufnr
-      vim.keymap.set(mode, l, r, opts)
+    local function map(mode, l, r, desc)
+      vim.keymap.set(mode, l, r, { buffer = bufnr, desc = desc })
     end
 
     -- Navigation
@@ -246,7 +444,7 @@ require('gitsigns').setup{
       else
         gitsigns.nav_hunk('next')
       end
-    end)
+    end, "Next git hunk")
 
     map('n', '[c', function()
       if vim.wo.diff then
@@ -254,48 +452,60 @@ require('gitsigns').setup{
       else
         gitsigns.nav_hunk('prev')
       end
-    end)
+    end, "Prev git hunk")
 
     -- Actions
-    map('n', '<leader>hs', gitsigns.stage_hunk)
-    map('n', '<leader>hr', gitsigns.reset_hunk)
+    map('n', '<leader>hs', gitsigns.stage_hunk, "Stage hunk")
+    map('n', '<leader>hr', gitsigns.reset_hunk, "Reset hunk")
 
     map('v', '<leader>hs', function()
       gitsigns.stage_hunk({ vim.fn.line('.'), vim.fn.line('v') })
-    end)
+    end, "Stage selected hunk")
 
     map('v', '<leader>hr', function()
       gitsigns.reset_hunk({ vim.fn.line('.'), vim.fn.line('v') })
-    end)
+    end, "Reset selected hunk")
 
-    map('n', '<leader>hS', gitsigns.stage_buffer)
-    map('n', '<leader>hR', gitsigns.reset_buffer)
-    map('n', '<leader>hp', gitsigns.preview_hunk)
-    map('n', '<leader>hi', gitsigns.preview_hunk_inline)
+    map('n', '<leader>hS', gitsigns.stage_buffer, "Stage buffer")
+    map('n', '<leader>hR', gitsigns.reset_buffer, "Reset buffer")
+    map('n', '<leader>hp', gitsigns.preview_hunk, "Preview hunk")
+    map('n', '<leader>hi', gitsigns.preview_hunk_inline, "Preview hunk inline")
 
     map('n', '<leader>hb', function()
       gitsigns.blame_line({ full = true })
-    end)
+    end, "Blame line (full)")
 
-    map('n', '<leader>hd', gitsigns.diffthis)
+    map('n', '<leader>hd', gitsigns.diffthis, "Diff this")
 
     map('n', '<leader>hD', function()
       gitsigns.diffthis('~')
-    end)
+    end, "Diff against last commit")
 
-    map('n', '<leader>hQ', function() gitsigns.setqflist('all') end)
-    map('n', '<leader>hq', gitsigns.setqflist)
+    map('n', '<leader>hQ', function() gitsigns.setqflist('all') end, "All hunks to quickfix")
+    map('n', '<leader>hq', gitsigns.setqflist, "Buffer hunks to quickfix")
 
     -- Toggles
-    map('n', '<leader>tb', gitsigns.toggle_current_line_blame)
-    map('n', '<leader>tw', gitsigns.toggle_word_diff)
+    map('n', '<leader>tb', gitsigns.toggle_current_line_blame, "Toggle line blame")
+    map('n', '<leader>tw', gitsigns.toggle_word_diff, "Toggle word diff")
 
     -- Text object
-    map({'o', 'x'}, 'ih', gitsigns.select_hunk)
+    vim.keymap.set({'o', 'x'}, 'ih', gitsigns.select_hunk, { buffer = bufnr, desc = "Select hunk (text object)" })
   end
 }
 
-vim.api.nvim_set_keymap('n', '<F1>', ':lua toggle_lsp()<CR>', { noremap = true, silent = true })
+require('satellite').setup({
+  current_only = false,
+  winblend = 50,
+  handlers = {
+    aerial = { enable = true },
+    gitsigns = { enable = true },
+    diagnostic = { enable = true },
+  },
+})
+require("stickybuf").setup()
+
+vim.api.nvim_set_keymap('n', '<F1>', ':lua toggle_lsp()<CR>', { noremap = true, silent = true, desc = "Stop LSP clients" })
+
 local uv = vim.loop
 local last_weather = ""
 local last_update = 0
@@ -354,7 +564,7 @@ end
 local function sun_cache_stale()
   local stat = uv.fs_stat(sun_cache_path)
   if not stat then return true end
-  -- refresh if older than 6 hours (sunrise/sunset don’t shift much)
+  -- refresh if older than 6 hours (sunrise/sunset don't shift much)
   return (os.time() - stat.mtime.sec) > (6 * 3600)
 end
 
@@ -501,9 +711,9 @@ function _G.StatusWeather()
   local temp, cond = last_weather:match("([%+%-]?%d+°[CF])%s*(.*)")
   local icon = get_weather_icon(temp or "", cond or "")
   if temp and cond then
-    return string.format("  %s %s  %s │ %s  ", icon, cond, temp, os.date("%I:%M %p  %m/%d"))
+    return string.format("  %s %s  %s │ %s  ", icon, cond, temp, os.date("%I:%M %p  %m/%d"))
   else
-    return os.date("   %m/%d  %I:%M %p  ")
+    return os.date("   %m/%d  %I:%M %p  ")
   end
 end
 
@@ -565,35 +775,114 @@ function M.live_grep_project()
   })
 end
 
-vim.keymap.set('v', '<leader>fg', M.live_grep_project, { noremap = true, silent = true })
-vim.keymap.set('n', '<leader>fg', M.live_grep_project, { noremap = true, silent = true })
+vim.keymap.set('v', '<leader>fg', M.live_grep_project, { noremap = true, silent = true, desc = "Live grep (visual selection)" })
+vim.keymap.set('n', '<leader>fg', M.live_grep_project, { noremap = true, silent = true, desc = "Live grep project" })
+vim.keymap.set('n', '<C-h>', '<C-w>h', { desc = "Move to left window" })
+vim.keymap.set('n', '<C-l>', '<C-w>l', { desc = "Move to right window" })
+vim.keymap.set('n', '<C-j>', '<C-w>j', { desc = "Move to window below" })
+vim.keymap.set('n', '<C-k>', '<C-w>k', { desc = "Move to window above" })
+vim.keymap.set('n', '<C-Left>',  '<C-w><', { desc = "Shrink window width" })
+vim.keymap.set('n', '<C-Right>', '<C-w>>', { desc = "Grow window width" })
+vim.keymap.set('n', '<C-Up>',    '<C-w>+', { desc = "Grow window height" })
+vim.keymap.set('n', '<C-Down>',  '<C-w>-', { desc = "Shrink window height" })
+vim.keymap.set('n', '<leader>[', ':bprev<CR>', { desc = "Previous buffer" })
+vim.keymap.set('n', '<leader>]', ':bnext<CR>', { desc = "Next buffer" })
+
+vim.api.nvim_create_autocmd({"InsertEnter", "InsertLeave", "BufEnter"}, {
+  callback = function()
+    vim.cmd("redrawstatus")
+  end,
+})
 
 return M
 
 EOF
+
+function! ConvertAllCommentsToBlocks() range
+  let l:start = a:firstline
+  let l:end = a:lastline
+  let l:lines = getline(l:start, l:end)
+
+  let l:result = []
+  let l:block_buffer = []
+  let l:in_block = 0
+
+  for l:line in l:lines
+    " CASE 1: full-line comment
+    if l:line =~ '^\s*//'
+      let l:comment_text = substitute(l:line, '^\s*//\s*', '', '')
+      call add(l:block_buffer, l:comment_text)
+      let l:in_block = 1
+      continue
+    endif
+
+    " CASE 2: line of code with inline comment
+    if l:line =~ '//'
+      " flush existing block if any
+      if l:in_block && !empty(l:block_buffer)
+        call add(l:result, '/* ' . join(l:block_buffer, ' ') . ' */')
+        let l:block_buffer = []
+        let l:in_block = 0
+      endif
+      let l:match_pos = match(l:line, '//')
+      let l:prefix = strpart(l:line, 0, l:match_pos)
+      let l:comment_part = substitute(strpart(l:line, l:match_pos), '^//\s*', '', '')
+      call add(l:result, l:prefix . '/* ' . l:comment_part . ' */')
+      continue
+    endif
+
+    " CASE 3: blank line or normal code line
+    if l:in_block
+      " flush block buffer when leaving comment run
+      if !empty(l:block_buffer)
+        call add(l:result, '/* ' . join(l:block_buffer, ' ') . ' */')
+        let l:block_buffer = []
+      endif
+      let l:in_block = 0
+    endif
+
+    call add(l:result, l:line)
+  endfor
+
+  " Flush final block at end of range
+  if !empty(l:block_buffer)
+    call add(l:result, '/* ' . join(l:block_buffer, ' ') . ' */')
+  endif
+
+  " Replace lines in buffer
+  call setline(l:start, l:result)
+  if len(l:result) < (l:end - l:start + 1)
+    call deletebufline('%', l:start + len(l:result), l:end)
+  endif
+endfunction
+
+vnoremap <leader>c :<C-u>call ConvertAllCommentsToBlocks()<CR>
 
 syntax enable
 if !isdirectory(expand("~/.local/share/nvim/undo"))
   call mkdir(expand("~/.local/share/nvim/undo"), "p")
 endif
 
+let g:NERDTreeWinPos = 'right'
+let g:NERDTreeWinSize = 40
+let g:NERDTreeChDirMode = 2
+nnoremap <leader>g :NERDTreeFind<CR>
+nnoremap <leader>G :NERDTreeToggle<CR>
 nnoremap <leader>n :NERDTreeFocus<CR>
-nnoremap <C-h> :NERDTreeToggle<CR>
-nnoremap <C-f> :NERDTreeFind<CR>
-nnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
+nnoremap <leader>e <Cmd>exe v:count1 . "ToggleTerm"<CR>
 nnoremap <F5> :let _s=@/<Bar>:%s/\s\+$//e<Bar>:let @/=_s<Bar><CR>
 
-nnoremap <leader>fd <cmd>lua require('telescope.builtin').find_files({ 
-            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1] 
-            \ })<cr> 
+nnoremap <leader>fd <cmd>lua require('telescope.builtin').find_files({
+            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+            \ })<cr>
 
-nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers({ 
-            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1] 
-            \ })<cr> 
+nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers({
+            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+            \ })<cr>
 
-nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags({ 
-            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1] 
-            \ })<cr> 
+nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags({
+            \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+            \ })<cr>
 
 autocmd BufReadPost *
      \ if line("'\"") > 0 && line("'\"") <= line("$") |
@@ -604,22 +893,34 @@ function! AirlineWeather()
   return luaeval('StatusWeather()')
 endfunction
 
+function! AirlineCopilot()
+  return luaeval('CopilotStatus()')
+endfunction
+
+
 let g:airline_powerline_fonts = 1
 let g:webdevicons_enable_airline_tabline = 1
 let g:webdevicons_enable_airline_statusline = 1
 let g:airline#extensions#tabline#enabled = 1
 let g:airline#extensions#tabline#formatter = 'default'
-let g:airline_theme = 'molokai'
+let g:airline_theme = 'base16_material_darker'
 let g:powerline_pycmd = 'python3'
 let g:airline_skip_empty_sections = 1
+let g:airline_section_c = ''
 
 call airline#parts#define_function('airline_weather', 'AirlineWeather')
 let g:airline_section_x = airline#section#create_right(['airline_weather'])
 
+autocmd User AirlineAfterInit call s:SetupCopilotSection()
+function! s:SetupCopilotSection()
+  call airline#parts#define_function('airline_copilot', 'AirlineCopilot')
+  let g:airline_section_z = airline#section#create(['airline_copilot', ' %p%%', 'linenr', 'maxlinenr', 'colnr'])
+endfunction
+
 colorscheme cyberdream
 
 set undofile
-set undodir=~/.local/share/nvim/undo
+set undodir^=~/.local/share/nvim/undo//
 set laststatus=2
 set termguicolors
 set number
@@ -630,15 +931,21 @@ set shiftwidth=4
 set expandtab
 set autoindent
 set smartindent
+set cursorline
+
+highlight CursorLineNr ctermfg=Yellow guifg=Yellow
+highlight CursorLine ctermbg=NONE guibg=NONE
 
 command! Wq wq
 command! WQ wq
 command! W w
 command! Q q
 
-let g:neoformat_verilog_verible = {
-      \ 'exe': 'verible-verilog-format',
-      \ 'args': ['--indentation_spaces=4 -'],
-      \ 'stdin': 1,
-      \ }
-let g:neoformat_enabled_verilog = ['verible']
+
+"
+"let g:neoformat_verilog_verible = {
+"      \ 'exe': 'verible-verilog-format',
+"      \ 'args': ['--indentation_spaces=4 -'],
+"      \ 'stdin': 1,
+"      \ }
+"let g:neoformat_enabled_verilog = ['verible']
