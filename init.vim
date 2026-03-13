@@ -404,8 +404,14 @@ function toggle_lsp()
     lsp_active = false
 end
 
-require('which-key').setup({
-  delay = 400,
+local wk = require('which-key')
+wk.setup({ delay = 400, win = { border = "rounded" } })
+
+vim.api.nvim_create_autocmd("User", {
+  pattern = "WhichKeyClose",
+  callback = function()
+    vim.cmd("AirlineRefresh")
+  end,
 })
 
 -- which-key group labels
