@@ -53,7 +53,6 @@ autocmd BufNewFile,BufRead *.sh set filetype=sh
 let mapleader = " "
 
 lua << EOF
-
 local copilot = require("copilot")
 
 copilot.setup({
@@ -717,7 +716,7 @@ function _G.StatusWeather()
   local temp, cond = last_weather:match("([%+%-]?%d+°[CF])%s*(.*)")
   local icon = get_weather_icon(temp or "", cond or "")
   if temp and cond then
-    return string.format("  %s %s  %s │ %s  ", icon, cond, temp, os.date("%I:%M %p  %m/%d"))
+    return string.format("  %s  %s  %s │ %s  ", icon, cond, temp, os.date("%I:%M %p  %m/%d"))
   else
     return os.date("   %m/%d  %I:%M %p  ")
   end
@@ -740,6 +739,14 @@ vim.api.nvim_create_autocmd("VimEnter", {
 })
 
 vim.opt.statuscolumn = "%s%=%l%#LineNr#│"
+vim.api.nvim_create_autocmd("ModeChanged", {
+
+  callback = function()
+    vim.cmd("redrawstatus!")
+
+    vim.cmd("redraw!")
+  end,
+})
 
 local M = {}
 
