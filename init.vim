@@ -517,7 +517,89 @@ local last_update = 0
 local weather_timer = nil
 local cache_path = "/tmp/nvim_weather_cache"
 local sun_cache_path = "/tmp/nvim_sun_cache"
+local moon_cache_path = "/tmp/nvim_moon_cache"
 local sunrise, sunset = nil, nil
+local last_moon = ""
+
+local moon_emoji_to_nf = {
+  ["🌑"] = "",
+  ["🌒"] = "",
+  ["🌓"] = "",
+  ["🌔"] = "",
+  ["🌕"] = "",
+
+  ["🌖"] = "",
+  ["🌗"] = "",
+
+  ["🌘"] = "",
+}
+
+local function moon_cache_stale()
+  local stat = uv.fs_stat(moon_cache_path)
+  if not stat then return true end
+  return (os.time() - stat.mtime.sec) > (6 * 3600)
+end
+
+local function load_moon_cache()
+
+  local f = io.open(moon_cache_path, "r")
+  if f then
+
+    local data = f:read("*a")
+    f:close()
+    if data and data ~= "" then
+      last_moon = data:gsub("\n", ""):gsub("%s+", "")
+    end
+  end
+end
+ 
+local function save_moon_cache()
+  local f = io.open(moon_cache_path, "w")
+  if f then
+    f:write(last_moon)
+    f:close()
+  end
+end
+
+ 
+local function update_moon_async()
+  if not moon_cache_stale() then
+    load_moon_cache()
+
+    return
+  end
+ 
+  local stdout = uv.new_pipe(false)
+  local stderr = uv.new_pipe(false)
+  local data = ""
+  local handle
+  handle = uv.spawn("curl", {
+    args = { "-s", "wttr.in?format=%m" },
+    stdio = { nil, stdout, stderr },
+  }, function(code)
+    vim.defer_fn(function()
+      stdout:close()
+
+      stderr:close()
+      handle:close()
+      if code == 0 and data and data ~= "" then
+        last_moon = data:gsub("\n", ""):gsub("%s+", "")
+        save_moon_cache()
+        vim.schedule(function() vim.cmd("redrawstatus") end)
+      end
+    end, 100)
+
+  end)
+  stdout:read_start(function(err, chunk)
+    if chunk then data = data .. chunk end
+  end)
+  stderr:read_start(function() end)
+end
+ 
+local function get_moon_icon()
+  if last_moon == "" then return "" end
+  return moon_emoji_to_nf[last_moon] or last_moon
+end
 
 local function load_weather_cache()
   local f = io.open(cache_path, "r")
@@ -631,47 +713,47 @@ local function get_weather_icon(temp, cond)
 
   local icon
   if cond:match("thunder") or cond:match("storm") or cond:match("lightning") then
-    icon = "⛈️"
+    icon = ""
   elseif cond:match("rain") or cond:match("drizzle") then
     if cond:match("light") then
-      icon = "🌦️"
+      icon = ""
     elseif cond:match("heavy") then
-      icon = "🌧️"
+      icon = ""
     else
-      icon = "🌦️"
+      icon = ""
     end
   elseif cond:match("snow") or cond:match("sleet") or cond:match("flurr") then
     if cond:match("light") then
-      icon = "🌨️"
+      icon = ""
     elseif cond:match("heavy") then
-      icon = "❄️"
+      icon = ""
     else
-      icon = "🌨️"
+      icon = ""
     end
   elseif cond:match("hail") then
-    icon = "🧊"
+    icon = ""
   elseif cond:match("fog") or cond:match("mist") or cond:match("haze") or cond:match("smoke") then
-    icon = "🌫️"
+    icon = ""
   elseif cond:match("overcast") then
-    icon = "☁️"
+    icon = ""
   elseif cond:match("partly") or cond:match("cloud") then
-    icon = day and "🌤️" or "☁️"
+    icon = day and "" or ""
   elseif cond:match("clear") or cond:match("sun") then
-    icon = day and "☀️" or "🌙"
+    icon = day and "" or ""
   elseif cond:match("wind") or cond:match("breeze") or cond:match("gust") then
-    icon = "💨"
+    icon = ""
   elseif cond:match("tornado") or cond:match("cyclone") or cond:match("funnel") then
-    icon = "🌪️"
+    icon = ""
   elseif cond:match("dust") or cond:match("sand") then
-    icon = "🏜️"
+    icon = ""
   elseif cond:match("ice") or cond:match("freez") then
-    icon = "🧊"
+    icon = ""
   else
-    icon = "❓"
+    icon = ""
   end
 
-  if not day and icon ~= "🌙" then
-    icon = "🌙 " .. icon
+  if not day and icon ~= "" then
+    icon = " " .. icon
   end
 
   return icon
@@ -715,8 +797,10 @@ end
 function _G.StatusWeather()
   local temp, cond = last_weather:match("([%+%-]?%d+°[CF])%s*(.*)")
   local icon = get_weather_icon(temp or "", cond or "")
+  local moon = get_moon_icon()
+  local moon_str = moon ~= "" and (moon .. "  ") or ""
   if temp and cond then
-    return string.format("  %s  %s  %s │ %s  ", icon, cond, temp, os.date("%I:%M %p  %m/%d"))
+    return string.format(" %s %s  %s  %s │ %s  ", moon_str, icon, cond, temp, os.date("%I:%M %p  %m/%d"))
   else
     return os.date("   %m/%d  %I:%M %p  ")
   end
@@ -732,8 +816,10 @@ end
 vim.api.nvim_create_autocmd("VimEnter", {
   callback = function()
     load_weather_cache()
+    load_moon_cache()
     update_weather_async()
     update_sun_times()
+    update_moon_async()
     schedule_time_updates()
   end,
 })
