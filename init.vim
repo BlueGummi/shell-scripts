@@ -2,23 +2,24 @@
 " ║  init.vim — table of contents.  Jump with:  /SECTION: <name>               ║
 " ╟───────────────────────────────────────────────────────────────────────────╢
 " ║  Plugins ............ vim-plug plugin list                                 ║
-" ║  Early setup ........ airline boot, filetype, mapleader                    ║
+" ║  Early setup ........ airline boot, mapleader                              ║
 " ║  Copilot ............ copilot.lua + suggestion keymaps                     ║
-" ║  ClaudeCode ......... claudecode.nvim CLI bridge + <leader>C keymaps        ║
-" ║  Completion ......... nvim-cmp mappings                                    ║
+" ║  ClaudeCode ......... claudecode.nvim CLI bridge + <leader>C keymaps       ║
 " ║  Todo-comments                                                             ║
 " ║  Treesitter                                                                ║
+" ║  Structural select .. treesitter-driven S / gs / <Tab> selection           ║
 " ║  Aerial ............. symbols outline                                      ║
 " ║  Colorscheme ........ cyberdream setup (transparent)                       ║
-" ║  LSP ................ lsp servers + cmp/lsp glue                           ║
-" ║  Which-key .......... group/label registrations                           ║
+" ║  LSP ................ lsp servers + nvim-cmp completion glue               ║
+" ║  Which-key .......... group registrations (descs live on the keymaps)      ║
 " ║  Gitsigns                                                                  ║
+" ║  Statusline ......... clock + redraw driver (weather → SwiftBar, removed)  ║
 " ║  Telescope .......... pickers (setup in lua block)                         ║
 " ║  Bufferline ......... the tab bar + drag-order persistence                 ║
 " ║  Session ............ persistence.nvim (sticky per-dir restore)            ║
 " ║  Editing ............ comment / flash / autopairs / indent / surround      ║
 " ║  Trouble ............ diagnostics/quickfix panel                           ║
-" ║  Build .............. cmake-tools (primary) + overseer (ad-hoc)            ║
+" ║  Build .............. cmake-tools                                          ║
 " ║  Vimscript fns ...... comment-block converter, airline helpers             ║
 " ║  NERDTree                                                                  ║
 " ║  Telescope keymaps                                                         ║
@@ -34,7 +35,6 @@ Plug 'folke/which-key.nvim'
 Plug 'stevearc/stickybuf.nvim'
 Plug 'zbirenbaum/copilot.lua'
 Plug 'coder/claudecode.nvim'
-Plug 'tpope/vim-sensible'
 Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
 Plug 'vim-airline/vim-airline'
 Plug 'ryanoasis/vim-devicons'
@@ -65,7 +65,6 @@ Plug 'windwp/nvim-autopairs'
 Plug 'lukas-reineke/indent-blankline.nvim'
 Plug 'kylechui/nvim-surround', { 'tag': '*' }
 Plug 'folke/trouble.nvim'
-Plug 'stevearc/overseer.nvim'
 Plug 'Civitasv/cmake-tools.nvim'
 
 call plug#end()
@@ -76,8 +75,6 @@ function! s:EnableAirlineAfterStartup()
   set laststatus=2
   AirlineRefresh
 endfunction
-
-autocmd BufNewFile,BufRead *.sh set filetype=sh
 
 let mapleader = " "
 
@@ -173,15 +170,10 @@ vim.keymap.set("n", "<leader>d", function()
   vim.cmd("redrawstatus")
 end, { desc = "Toggle Copilot suggestions" })
 
-vim.api.nvim_create_autocmd("VimEnter", {
-  callback = function()
-    if copilot_user_disabled then
-      vim.b.copilot_suggestion_auto_trigger = false
-    end
-    vim.cmd("redrawstatus")
-  end,
-})
-
+-- No VimEnter primer for vim.b.copilot_suggestion_auto_trigger: the autocmd
+-- below sets it on the first insert, and CopilotStatus() already reads a nil
+-- flag as "fall back to copilot_user_disabled", so the statusline is correct
+-- from the first draw.
 vim.api.nvim_create_autocmd({ "InsertEnter", "CursorMovedI", "TextChangedI" }, {
   callback = function()
     if copilot_user_disabled or should_suppress_copilot() then
@@ -222,12 +214,6 @@ require("todo-comments").setup {
   },
 }
 
-vim.api.nvim_create_autocmd({"InsertEnter", "InsertLeave"}, {
-  callback = function()
-    vim.cmd("redrawstatus")
-  end,
-})
-
 function _G.CopilotStatus()
   local auto = vim.b.copilot_suggestion_auto_trigger
   local disabled = (auto == false) or (auto == nil and copilot_user_disabled)
@@ -239,15 +225,15 @@ function _G.CopilotStatus()
 end
 
 -- ═══════════════════════════ SECTION: Treesitter ═══════════════════════════
-require('nvim-treesitter').setup {
-  ensure_installed = { "rust", "c", "gleam", "cpp", "markdown", "haskell", "python", "js" },
-  highlight = {
-    enable = true,
-  },
-  indent = {
-    enable = true,
-  },
-}
+-- No require('nvim-treesitter').setup{} call on purpose. We track the `main`
+-- branch, whose setup() reads exactly one key -- install_dir -- and silently
+-- discards everything else. The ensure_installed / highlight / indent table
+-- that used to sit here had never done anything: highlighting comes from the
+-- vim.treesitter.start() autocmd below, and parsers are installed by hand.
+--   parsers:  :TSInstall <lang>   /  :TSUpdate   /  :checkhealth nvim-treesitter
+-- To make a parser list declarative again it'd be require('nvim-treesitter')
+--   .install({ "rust", "c", "cpp", "markdown", "haskell", "python" })
+-- which downloads on startup -- deliberately not done here.
 
 vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
   callback = function(args)
@@ -435,7 +421,6 @@ require("cyberdream").setup({
 })
 
 -- ═══════════════════════════ SECTION: LSP (servers + completion glue) ═══════════════════════════
-local cmp = require('cmp')
 local cmp_lsp = require('cmp_nvim_lsp')
 
 vim.lsp.config("clangd", {
@@ -448,8 +433,9 @@ vim.lsp.config("clangd", {
     },
     capabilities = cmp_lsp.default_capabilities(),
     on_attach = function(client, bufnr)
-        -- require here: the `local cmp` below is declared later in this chunk, so
-        -- referencing it directly would resolve to the (nil) global and error.
+        -- require() rather than an upvalue: the `local cmp` this used to close
+        -- over is declared further down the chunk, so the name would resolve to
+        -- the (nil) global at call time.
         require('cmp').setup.buffer {
             sources = {
                 { name = 'nvim_lsp', max_item_count = 15 },
@@ -466,13 +452,6 @@ vim.diagnostic.config({
   update_in_insert = false,
 })
 
-vim.api.nvim_create_autocmd({"TextChanged", "TextChangedI"}, {
-    pattern = "*",
-    callback = function()
-        vim.diagnostic.setloclist({open=false})
-    end
-})
-
 vim.lsp.config.bashls = {
   cmd = { 'bash-language-server', 'start' },
   filetypes = { 'bash', 'sh' }
@@ -481,7 +460,6 @@ vim.lsp.enable 'bashls'
 
 vim.g.rustaceanvim = {
   server = {
-    on_attach = on_attach,
     settings = {
         ["rust-analyzer"] = {
             lru = { capacity = 512 },
@@ -519,16 +497,12 @@ vim.g.rustaceanvim = {
 vim.lsp.config("pylsp", {})
 vim.lsp.enable({"pylsp"})
 
--- vim.lsp.with was removed; hover/signature_help now take opts directly
-local hover = vim.lsp.buf.hover
-vim.lsp.buf.hover = function(opts)
-    return hover(vim.tbl_extend("force", { border = "rounded" }, opts or {}))
-end
-
-local signature_help = vim.lsp.buf.signature_help
-vim.lsp.buf.signature_help = function(opts)
-    return signature_help(vim.tbl_extend("force", { border = "rounded" }, opts or {}))
-end
+-- Default border for every float that doesn't ask for one (0.11+). Replaces a
+-- pair of wrappers that monkeypatched vim.lsp.buf.hover/signature_help to
+-- inject border="rounded"; this covers those two plus diagnostics floats, LSP
+-- rename prompts, and anything else that would otherwise come up borderless.
+-- nvim-cmp's windows set their own border below and are unaffected.
+vim.o.winborder = "rounded"
 
 local lsp_buf_hover = function()
     if vim.fn.pumvisible() == 1 then
@@ -539,6 +513,9 @@ end
 
 local cmp = require'cmp'
 cmp.setup({
+    -- Deliberately a no-op: no snippet engine is installed, and an empty expand
+    -- is what stops cmp erroring when an LSP returns a snippet completion. The
+    -- placeholder body is dropped; the label text still gets inserted.
     snippet = {
         expand = function(args)
         end,
@@ -546,9 +523,6 @@ cmp.setup({
 
     completion = {
         completeopt = 'menu,menuone,noselect',
-        max_items = 10,
-        min_length = 1,
-        timeout = 100,
     },
     mapping = {
         ['<C-n>'] = cmp.mapping.select_next_item(),
@@ -560,13 +534,7 @@ cmp.setup({
     },
 
     sources = {
-        {
-            name = 'nvim_lsp',
-            entry_filter = function(entry)
-                return true
-            end,
-            max_item_count = 20,
-        },
+        { name = 'nvim_lsp', max_item_count = 20 },
         { name = 'buffer', max_item_count = 20 },
         { name = 'path', max_item_count = 20 },
     },
@@ -592,11 +560,10 @@ vim.filetype.add({
     },
 })
 
-local lsp_active = false
-
-function toggle_lsp()
+-- Named for what it does. It was `toggle_lsp` alongside an `lsp_active` flag
+-- that was written but never read; nothing here ever restarted a client.
+function stop_lsp()
     vim.lsp.stop_client(vim.lsp.get_clients())
-    lsp_active = false
 end
 
 -- ═══════════════════════════ SECTION: Which-key ═══════════════════════════
@@ -609,9 +576,13 @@ vim.api.nvim_create_autocmd("User", {
     vim.cmd("AirlineRefresh")
   end,
 })
-
--- which-key group labels
-local wk = require('which-key')
+-- Only two things belong here:
+--   1. group labels -- which-key can't infer the name of a prefix, and
+--   2. descriptions for keys defined in VIMSCRIPT further down, since :nnoremap
+--      has nowhere to hang a desc.
+-- Everything else already passes `desc =` at vim.keymap.set() and which-key
+-- reads it straight off the mapping. ~30 entries that merely restated those
+-- descs lived here and were a second copy to keep in sync; they're gone.
 wk.add({
   { "<leader>a", group = "aerial/symbols" },
   { "<leader>f", group = "find/format" },
@@ -619,42 +590,15 @@ wk.add({
   { "<leader>t", group = "toggles" },
   { "<leader>q", group = "session" },
   { "<leader>x", group = "trouble/diagnostics" },
-  { "<leader>o", group = "overseer/tasks" },
   { "<leader>c", group = "cmake" },
   { "<leader>C", group = "claude" },
-  { "<leader>Cs", desc = "Send selection / cursor context", mode = "v" },
-  { "<leader>fs", desc = "LSP: symbol by name (project)" },
-  { "<leader>fd", desc = "LSP: definitions" },
-  { "<leader>fr", desc = "LSP: references (usages)" },
-  { "<leader>ft", desc = "LSP: type definition" },
-  { "<leader>fc", desc = "LSP: incoming calls (callers)" },
-  { "<leader>fC", desc = "LSP: outgoing calls (callees)" },
-  { "S", desc = "Select structure (smart)" },
-  { "gs", desc = "Select node under cursor (literal)" },
-  { "<Tab>", desc = "Grow structural selection", mode = "x" },
-  { "<S-Tab>", desc = "Shrink structural selection", mode = "x" },
-  { "<leader>b", desc = "CMake build" },
-  { "<leader>?", desc = "Show all keybinds" },
+
+  -- vimscript-defined (SECTION: NERDTree / Vimscript fns)
   { "<leader>g", desc = "NERDTree: find current file" },
   { "<leader>G", desc = "NERDTree: toggle" },
   { "<leader>n", desc = "NERDTree: focus" },
-  { "<leader>d", desc = "Toggle Copilot" },
-  { "<leader>[", desc = "Previous buffer" },
-  { "<leader>]", desc = "Next buffer" },
-  { "<leader>1", desc = "Go to buffer 1" },
-  { "<leader>2", desc = "Go to buffer 2" },
-  { "<leader>3", desc = "Go to buffer 3" },
-  { "<leader>4", desc = "Go to buffer 4" },
-  { "<leader>5", desc = "Go to buffer 5" },
-  { "<leader>6", desc = "Go to buffer 6" },
-  { "<leader>7", desc = "Go to buffer 7" },
-  { "<leader>8", desc = "Go to buffer 8" },
-  { "<leader>9", desc = "Go to last buffer" },
-  { "<leader>c", desc = "Convert // comments to /* */ (visual)", mode = "v" },
-  { "]c", desc = "Next git hunk" },
-  { "[c", desc = "Prev git hunk" },
-  { "<F1>", desc = "Stop LSP clients" },
   { "<F5>", desc = "Strip trailing whitespace" },
+  { "<leader>c", desc = "Convert // comments to /* */ (visual)", mode = "v" },
 })
 
 -- ═══════════════════════════ SECTION: Gitsigns ═══════════════════════════
@@ -741,329 +685,37 @@ require('satellite').setup({
 })
 require("stickybuf").setup()
 
-vim.api.nvim_set_keymap('n', '<F1>', ':lua toggle_lsp()<CR>', { noremap = true, silent = true, desc = "Stop LSP clients" })
+vim.api.nvim_set_keymap('n', '<F1>', ':lua stop_lsp()<CR>', { noremap = true, silent = true, desc = "Stop LSP clients" })
 
-local uv = vim.loop
-local last_weather = ""
-local last_update = 0
-local weather_timer = nil
-local cache_path = "/tmp/nvim_weather_cache"
-local sun_cache_path = "/tmp/nvim_sun_cache"
-local moon_cache_path = "/tmp/nvim_moon_cache"
-local sunrise, sunset = nil, nil
-local last_moon = ""
-
-local moon_emoji_to_nf = {
-  ["🌑"] = "",
-  ["🌒"] = "",
-  ["🌓"] = "",
-  ["🌔"] = "",
-  ["🌕"] = "",
-
-  ["🌖"] = "",
-  ["🌗"] = "",
-
-  ["🌘"] = "",
-}
-
-local function moon_cache_stale()
-  local stat = uv.fs_stat(moon_cache_path)
-  if not stat then return true end
-  return (os.time() - stat.mtime.sec) > (6 * 3600)
+-- ═══════════════════════════ SECTION: Statusline ═══════════════════════════
+-- Clock for airline's section_x.
+--
+-- What used to live here: ~310 lines that shelled out to `curl wttr.in` every
+-- 60s for temperature/condition, again for sunrise/sunset (solely to pick a day
+-- vs night icon), and again for the moon phase, caching all three in /tmp and
+-- mapping moon emoji onto Nerd Font glyphs. That widget now runs in the macOS
+-- menu bar instead -- see ~/Library/Application Support/SwiftBar/weather.15m.sh
+-- -- so nvim no longer spawns a subprocess a minute for decoration.
+function _G.StatusClock()
+  return os.date("   %m/%d  %I:%M %p  ")
 end
 
-local function load_moon_cache()
-
-  local f = io.open(moon_cache_path, "r")
-  if f then
-
-    local data = f:read("*a")
-    f:close()
-    if data and data ~= "" then
-      last_moon = data:gsub("\n", ""):gsub("%s+", "")
-    end
-  end
-end
- 
-local function save_moon_cache()
-  local f = io.open(moon_cache_path, "w")
-  if f then
-    f:write(last_moon)
-    f:close()
-  end
-end
-
- 
-local function update_moon_async()
-  if not moon_cache_stale() then
-    load_moon_cache()
-
-    return
-  end
- 
-  local stdout = uv.new_pipe(false)
-  local stderr = uv.new_pipe(false)
-  local data = ""
-  local handle
-  handle = uv.spawn("curl", {
-    args = { "-s", "wttr.in?format=%m" },
-    stdio = { nil, stdout, stderr },
-  }, function(code)
-    vim.defer_fn(function()
-      stdout:close()
-
-      stderr:close()
-      handle:close()
-      if code == 0 and data and data ~= "" then
-        last_moon = data:gsub("\n", ""):gsub("%s+", "")
-        save_moon_cache()
-        vim.schedule(function() vim.cmd("redrawstatus") end)
-      end
-    end, 100)
-
-  end)
-  stdout:read_start(function(err, chunk)
-    if chunk then data = data .. chunk end
-  end)
-  stderr:read_start(function() end)
-end
- 
-local function get_moon_icon()
-  if last_moon == "" then return "" end
-  return moon_emoji_to_nf[last_moon] or last_moon
-end
-
-local function load_weather_cache()
-  local f = io.open(cache_path, "r")
-  if f then
-    local data = f:read("*a")
-    f:close()
-    if data and data ~= "" then
-      last_weather = data:gsub("\n", "")
-    end
-  end
-end
-
-local function save_weather_cache()
-  local ok, f = pcall(io.open, cache_path, "w")
-  if ok and f then
-    f:write(last_weather)
-    f:close()
-  end
-end
-
-local function parse_sun_times(data)
-  -- wttr.in?format=%S+%s gives sunrise/sunset in HH:MM:SS format (local time)
-  local sr, ss = data:match("(%d+:%d+:%d*):?%s+(%d+:%d+:%d*):?")
-  if sr and ss then
-    sunrise, sunset = sr, ss
-    return true
-  end
-  return false
-end
-
-local function save_sun_cache()
-  if not sunrise or not sunset then return end
-  local f = io.open(sun_cache_path, "w")
-  if f then
-    f:write(string.format("%s %s\n", sunrise, sunset))
-    f:close()
-  end
-end
-
-local function load_sun_cache()
-  local f = io.open(sun_cache_path, "r")
-  if f then
-    local data = f:read("*a")
-    f:close()
-    parse_sun_times(data)
-  end
-end
-
-local function sun_cache_stale()
-  local stat = uv.fs_stat(sun_cache_path)
-  if not stat then return true end
-  -- refresh if older than 6 hours (sunrise/sunset don't shift much)
-  return (os.time() - stat.mtime.sec) > (6 * 3600)
-end
-
-local function update_sun_times()
-  if not sun_cache_stale() then
-    load_sun_cache()
-    return
-  end
-
-  local stdout = uv.new_pipe(false)
-  local stderr = uv.new_pipe(false)
-  local data = ""
-  local handle
-  handle = uv.spawn("curl", {
-    args = { "-s", "wttr.in?format=%S+%s" },
-    stdio = { nil, stdout, stderr },
-  }, function(code)
-    vim.defer_fn(function()
-      stdout:close()
-      stderr:close()
-      handle:close()
-      if code == 0 and data and data ~= "" and parse_sun_times(data) then
-        save_sun_cache()
-      end
-    end, 100)
-  end)
-  stdout:read_start(function(err, chunk)
-    if chunk then data = data .. chunk end
-  end)
-  stderr:read_start(function() end)
-end
-
-local function is_daytime()
-  if not (sunrise and sunset) then
-    load_sun_cache()
-    if not (sunrise and sunset) then
-      update_sun_times()
-      return true  -- default to day if unknown
-    end
-  end
-
-  local function to_minutes(t)
-    local h, m = t:match("(%d+):(%d+)")
-    return tonumber(h) * 60 + tonumber(m)
-  end
-
-  local now = os.date("*t")
-  local now_m = now.hour * 60 + now.min
-  local sr_m = to_minutes(sunrise)
-  local ss_m = to_minutes(sunset)
-
-  return now_m >= sr_m and now_m < ss_m
-end
-
-local function get_weather_icon(temp, cond)
-  if not cond or cond == "" then return "🌡️" end
-  cond = cond:lower()
-  local day = is_daytime()
-
-  local icon
-  if cond:match("thunder") or cond:match("storm") or cond:match("lightning") then
-    icon = ""
-  elseif cond:match("rain") or cond:match("drizzle") then
-    if cond:match("light") then
-      icon = ""
-    elseif cond:match("heavy") then
-      icon = ""
-    else
-      icon = ""
-    end
-  elseif cond:match("snow") or cond:match("sleet") or cond:match("flurr") then
-    if cond:match("light") then
-      icon = ""
-    elseif cond:match("heavy") then
-      icon = ""
-    else
-      icon = ""
-    end
-  elseif cond:match("hail") then
-    icon = ""
-  elseif cond:match("fog") or cond:match("mist") or cond:match("haze") or cond:match("smoke") then
-    icon = ""
-  elseif cond:match("overcast") then
-    icon = ""
-  elseif cond:match("partly") or cond:match("cloud") then
-    icon = day and "" or ""
-  elseif cond:match("clear") or cond:match("sun") then
-    icon = day and "" or ""
-  elseif cond:match("wind") or cond:match("breeze") or cond:match("gust") then
-    icon = ""
-  elseif cond:match("tornado") or cond:match("cyclone") or cond:match("funnel") then
-    icon = ""
-  elseif cond:match("dust") or cond:match("sand") then
-    icon = ""
-  elseif cond:match("ice") or cond:match("freez") then
-    icon = ""
-  else
-    icon = ""
-  end
-
-  if not day and icon ~= "" then
-    icon = " " .. icon
-  end
-
-  return icon
-end
-
-local function update_weather_async()
-  if weather_timer then weather_timer:stop() end
-  weather_timer = uv.new_timer()
-
-  local function fetch_weather()
-    local stdout = uv.new_pipe(false)
-    local stderr = uv.new_pipe(false)
-    local data = ""
-    local handle
-    handle = uv.spawn("curl", {
-      args = { "-s", "wttr.in?format=%t+%C" },
-      stdio = { nil, stdout, stderr },
-    }, function(code)
-      vim.defer_fn(function()
-        stdout:close()
-        stderr:close()
-        handle:close()
-        if code == 0 and data ~= "" and not data:match("Unknown location") then
-          last_weather = data:gsub("\n", "")
-          last_update = os.time()
-          save_weather_cache()
-          vim.schedule(function() vim.cmd("redrawstatus") end)
-        end
-      end, 100)
-    end)
-    stdout:read_start(function(err, chunk)
-      if chunk then data = data .. chunk end
-    end)
-    stderr:read_start(function() end)
-  end
-
-  fetch_weather()
-  weather_timer:start(60000, 60000, fetch_weather)
-end
-
-function _G.StatusWeather()
-  local temp, cond = last_weather:match("([%+%-]?%d+°[CF])%s*(.*)")
-  local icon = get_weather_icon(temp or "", cond or "")
-  local moon = get_moon_icon()
-  local moon_str = moon ~= "" and (moon .. "  ") or ""
-  if temp and cond then
-    return string.format(" %s %s  %s  %s │ %s  ", moon_str, icon, cond, temp, os.date("%I:%M %p  %m/%d"))
-  else
-    return os.date("   %m/%d  %I:%M %p  ")
-  end
-end
-
-local function schedule_time_updates()
-  vim.defer_fn(function()
-    vim.cmd("redrawstatus")
-    schedule_time_updates()
-  end, 60000)
-end
-
-vim.api.nvim_create_autocmd("VimEnter", {
-  callback = function()
-    load_weather_cache()
-    load_moon_cache()
-    update_weather_async()
-    update_sun_times()
-    update_moon_async()
-    schedule_time_updates()
-  end,
-})
+-- Tick the clock. A real repeating timer, not the self-rescheduling
+-- vim.defer_fn chain this replaced -- that one re-armed itself forever with no
+-- handle to stop or inspect it. :call timer_stop(g:nvim_clock_timer) kills this.
+vim.g.nvim_clock_timer = vim.fn.timer_start(
+  60000, function() vim.cmd("redrawstatus!") end, { ["repeat"] = -1 })
 
 vim.opt.statuscolumn = "%s%=%l%#LineNr#│"
-vim.api.nvim_create_autocmd("ModeChanged", {
 
-  callback = function()
-    vim.cmd("redrawstatus!")
-
-    vim.cmd("redraw!")
-  end,
+-- The one statusline refresh for the whole config. Three autocmds used to do
+-- this job -- two identical InsertEnter/InsertLeave pairs and this ModeChanged
+-- one -- and ModeChanged additionally ran a bare `redraw!`, repainting the
+-- entire screen every time you pressed i or <Esc>. ModeChanged already covers
+-- the insert transitions the other two were watching for; BufEnter covers the
+-- copilot indicator following you between buffers.
+vim.api.nvim_create_autocmd({ "ModeChanged", "BufEnter" }, {
+  callback = function() vim.cmd("redrawstatus!") end,
 })
 
 -- Telescope: load fzf-native so filename matching uses smart-case. Without this
@@ -1085,12 +737,15 @@ if ok_telescope then
   pcall(telescope_mod.load_extension, "fzf")
 end
 
-local M = {}
-
+-- NB: no `if not has_telescope then return end` here. A bare `return` at the
+-- top level of this chunk does not exit a module -- it ends init.vim's entire
+-- lua block. The guard that used to sit here meant one failed telescope require
+-- (a bad update, launching mid-:PlugUpdate, an fzf-native build failure) would
+-- silently take bufferline, session persistence, sticky buffers, Comment,
+-- flash, autopairs, indent guides, surround, Trouble and cmake down with it --
+-- no error, just a much dumber editor. The telescope-dependent keymaps are
+-- wrapped in `if has_telescope` below instead, so only they drop out.
 local has_telescope, telescope = pcall(require, "telescope.builtin")
-if not has_telescope then
-  return M
-end
 
 local function get_project_root()
   local root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
@@ -1115,39 +770,41 @@ local function get_search_text()
   return text
 end
 
-function M.live_grep_project()
-  local root = get_project_root()
-  local default_text = get_search_text()
-
+local function live_grep_project()
   telescope.live_grep({
-    cwd = root,
-    default_text = default_text,
+    cwd = get_project_root(),
+    default_text = get_search_text(),
   })
 end
 
-vim.keymap.set('n', 'fr', function()
-  local root = vim.fn.systemlist('git rev-parse --show-toplevel')[1]
-  if not root or root == '' then
-    root = vim.fn.getcwd()
-  end
-  require('telescope').extensions.frecency.frecency({
-    cwd = root,
-    workspace = 'CWD',
-  })
-end, { noremap = true, silent = true })
+if has_telescope then
+  -- Frecency lives on <leader>fR, NOT on a bare `fr`. As a top-level normal-mode
+  -- map, `fr` shadowed the f{char} motion: you could no longer jump to the next
+  -- "r" on the line. <leader>fr is already LSP references, hence the capital.
+  vim.keymap.set('n', '<leader>fR', function()
+    local root = vim.fn.systemlist('git rev-parse --show-toplevel')[1]
+    if not root or root == '' then
+      root = vim.fn.getcwd()
+    end
+    require('telescope').extensions.frecency.frecency({
+      cwd = root,
+      workspace = 'CWD',
+    })
+  end, { noremap = true, silent = true, desc = "Recent files (frecency)" })
 
-vim.keymap.set('v', '<leader>fg', M.live_grep_project, { noremap = true, silent = true, desc = "Live grep (visual selection)" })
-vim.keymap.set('n', '<leader>fg', M.live_grep_project, { noremap = true, silent = true, desc = "Live grep project" })
+  vim.keymap.set('v', '<leader>fg', live_grep_project, { noremap = true, silent = true, desc = "Live grep (visual selection)" })
+  vim.keymap.set('n', '<leader>fg', live_grep_project, { noremap = true, silent = true, desc = "Live grep project" })
 
--- LSP semantic search (clangd's project index, not raw text) — one picker per intent.
--- <leader>fs is the "grep, but symbols only" analog to <leader>fg: type a name, get
--- every matching symbol project-wide, tagged by kind, never a comment.
-vim.keymap.set('n', '<leader>fs', telescope.lsp_dynamic_workspace_symbols, { desc = "LSP: symbol by name (project)" })
-vim.keymap.set('n', '<leader>fd', telescope.lsp_definitions,               { desc = "LSP: definitions" })
-vim.keymap.set('n', '<leader>fr', telescope.lsp_references,                { desc = "LSP: references (usages)" })
-vim.keymap.set('n', '<leader>ft', telescope.lsp_type_definitions,          { desc = "LSP: type definition" })
-vim.keymap.set('n', '<leader>fc', telescope.lsp_incoming_calls,            { desc = "LSP: incoming calls (callers)" })
-vim.keymap.set('n', '<leader>fC', telescope.lsp_outgoing_calls,            { desc = "LSP: outgoing calls (callees)" })
+  -- LSP semantic search (clangd's project index, not raw text) — one picker per intent.
+  -- <leader>fs is the "grep, but symbols only" analog to <leader>fg: type a name, get
+  -- every matching symbol project-wide, tagged by kind, never a comment.
+  vim.keymap.set('n', '<leader>fs', telescope.lsp_dynamic_workspace_symbols, { desc = "LSP: symbol by name (project)" })
+  vim.keymap.set('n', '<leader>fd', telescope.lsp_definitions,               { desc = "LSP: definitions" })
+  vim.keymap.set('n', '<leader>fr', telescope.lsp_references,                { desc = "LSP: references (usages)" })
+  vim.keymap.set('n', '<leader>ft', telescope.lsp_type_definitions,          { desc = "LSP: type definition" })
+  vim.keymap.set('n', '<leader>fc', telescope.lsp_incoming_calls,            { desc = "LSP: incoming calls (callers)" })
+  vim.keymap.set('n', '<leader>fC', telescope.lsp_outgoing_calls,            { desc = "LSP: outgoing calls (callees)" })
+end
 
 vim.keymap.set('n', '<C-h>', '<C-w>h', { desc = "Move to left window" })
 vim.keymap.set('n', '<C-l>', '<C-w>l', { desc = "Move to right window" })
@@ -1741,7 +1398,7 @@ vim.keymap.set('n', '<leader>xq', '<cmd>Trouble qflist toggle<cr>',             
 -- cmake-tools.nvim: CMake-aware build/run for this project. Knows the out-of-source
 -- build dir natively (no Makefile-detection hacks), and sends build output to the
 -- quickfix list (browse with <leader>xq / Trouble). <leader>c = CMake commands.
--- ═══════════════════════════ SECTION: Build (cmake-tools + overseer) ═══════════════════════════
+-- ═══════════════════════════ SECTION: Build (cmake-tools) ═══════════════════════════
 -- cmake-tools takes its CMake source root from nvim's cwd, and re-derives it on
 -- every DirChanged — so cd-ing away (e.g. back into build/) resets it and breaks
 -- generate. The stable fix: make the cwd BE the source root and leave it there.
@@ -1812,25 +1469,16 @@ vim.keymap.set('n', '<leader>ct', '<cmd>CMakeSelectBuildTarget<cr>',{ desc = "CM
 vim.keymap.set('n', '<leader>cl', '<cmd>CMakeSelectLaunchTarget<cr>',{ desc = "CMake select launch target" })
 vim.keymap.set('n', '<leader>cv', '<cmd>CMakeSelectBuildType<cr>',  { desc = "CMake select build type" })
 
-vim.o.scroll = math.floor(vim.o.window / 2)
+-- 'scroll' is left at its default 0, which means "half the window" and re-derives
+-- itself on every resize. An explicit vim.o.scroll = window/2 used to sit here;
+-- it computed the same number once at startup and then went stale the moment you
+-- resized the window or opened a split.
 vim.api.nvim_set_keymap('n', '<C-e>', '10<C-e>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<C-y>', '10<C-y>', { noremap = true, silent = true })
--- overseer.nvim: kept as a bare-bones ad-hoc task runner for non-CMake odd jobs.
-require('overseer').setup {}
-vim.keymap.set('n', '<leader>or', '<cmd>OverseerRun<cr>',    { desc = "Run a task (Overseer)" })
-vim.keymap.set('n', '<leader>oo', '<cmd>OverseerToggle<cr>', { desc = "Toggle task list (Overseer)" })
 
 -- Summon the full which-key hint list for the current mode (all first keys,
 -- not just <leader>). Pressing <leader> alone already shows the leader menu.
 vim.keymap.set('n', '<leader>?', function() require('which-key').show({ global = true }) end, { desc = "Show all keybinds (which-key)" })
-
-vim.api.nvim_create_autocmd({"InsertEnter", "InsertLeave", "BufEnter"}, {
-  callback = function()
-    vim.cmd("redrawstatus")
-  end,
-})
-
-return M
 
 EOF
 
@@ -1931,27 +1579,26 @@ autocmd BufReadPost *
      \ endif
 
 " ═══════════════════════════ SECTION: Airline ═══════════════════════════
-function! AirlineWeather()
-  return luaeval('StatusWeather()')
+function! AirlineClock()
+  return luaeval('StatusClock()')
 endfunction
 
 function! AirlineCopilot()
   return luaeval('CopilotStatus()')
 endfunction
 
-
 let g:airline_powerline_fonts = 1
-let g:webdevicons_enable_airline_tabline = 1
 let g:webdevicons_enable_airline_statusline = 1
-" Tabline is handled by bufferline.nvim (see setup below), so disable airline's.
+" Tabline is handled by bufferline.nvim, so airline's is off. No
+" g:webdevicons_enable_airline_tabline / #tabline#formatter here: both only feed
+" the tabline this line disables.
 let g:airline#extensions#tabline#enabled = 0
-let g:airline#extensions#tabline#formatter = 'default'
 let g:airline_theme = 'base16_material_darker'
 let g:airline_skip_empty_sections = 1
 let g:airline_section_c = ''
 
-call airline#parts#define_function('airline_weather', 'AirlineWeather')
-let g:airline_section_x = airline#section#create_right(['airline_weather'])
+call airline#parts#define_function('airline_clock', 'AirlineClock')
+let g:airline_section_x = airline#section#create_right(['airline_clock'])
 
 
 autocmd User AirlineAfterInit call s:SetupCopilotSection()
@@ -1978,6 +1625,13 @@ set expandtab
 set autoindent
 set smartindent
 set cursorline
+
+" Carried over from tpope/vim-sensible, which was removed: on Neovim 0.12 these
+" two were the only settings it still contributed that aren't already the
+" default (its nrformats-=octal is nvim's default, its <C-L> map was overridden
+" by the <C-l> window-move below, and display=lastline ships out of the box).
+set scrolloff=1
+set sidescrolloff=2
 
 " Spellcheck (native, treesitter-scoped). 'spell' is window-local, and whenever a
 " treesitter highlighter is attached to a buffer it forces 'spelloptions' to
@@ -2046,11 +1700,3 @@ command! W w
 command! Q q
 
 set shada=!,'100,<1000,s100,h
-
-"
-"let g:neoformat_verilog_verible = {
-"      \ 'exe': 'verible-verilog-format',
-"      \ 'args': ['--indentation_spaces=4 -'],
-"      \ 'stdin': 1,
-"      \ }
-"let g:neoformat_enabled_verilog = ['verible']
