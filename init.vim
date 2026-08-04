@@ -15,7 +15,7 @@
 " ║  Gitsigns                                                                  ║
 " ║  Telescope .......... pickers (setup in lua block)                         ║
 " ║  Bufferline ......... the tab bar + drag-order persistence                 ║
-" ║  Session ............ persistence.nvim (per-dir restore)                   ║
+" ║  Session ............ persistence.nvim (sticky per-dir restore)            ║
 " ║  Editing ............ comment / flash / autopairs / indent / surround      ║
 " ║  Trouble ............ diagnostics/quickfix panel                           ║
 " ║  Build .............. cmake-tools (primary) + overseer (ad-hoc)            ║
@@ -519,11 +519,16 @@ vim.g.rustaceanvim = {
 vim.lsp.config("pylsp", {})
 vim.lsp.enable({"pylsp"})
 
-vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, {
-    border = "rounded",
-})
+-- vim.lsp.with was removed; hover/signature_help now take opts directly
+local hover = vim.lsp.buf.hover
+vim.lsp.buf.hover = function(opts)
+    return hover(vim.tbl_extend("force", { border = "rounded" }, opts or {}))
+end
 
-vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(vim.lsp.handlers.signature_help, { border = 'rounded' })
+local signature_help = vim.lsp.buf.signature_help
+vim.lsp.buf.signature_help = function(opts)
+    return signature_help(vim.tbl_extend("force", { border = "rounded" }, opts or {}))
+end
 
 local lsp_buf_hover = function()
     if vim.fn.pumvisible() == 1 then
@@ -636,6 +641,15 @@ wk.add({
   { "<leader>d", desc = "Toggle Copilot" },
   { "<leader>[", desc = "Previous buffer" },
   { "<leader>]", desc = "Next buffer" },
+  { "<leader>1", desc = "Go to buffer 1" },
+  { "<leader>2", desc = "Go to buffer 2" },
+  { "<leader>3", desc = "Go to buffer 3" },
+  { "<leader>4", desc = "Go to buffer 4" },
+  { "<leader>5", desc = "Go to buffer 5" },
+  { "<leader>6", desc = "Go to buffer 6" },
+  { "<leader>7", desc = "Go to buffer 7" },
+  { "<leader>8", desc = "Go to buffer 8" },
+  { "<leader>9", desc = "Go to last buffer" },
   { "<leader>c", desc = "Convert // comments to /* */ (visual)", mode = "v" },
   { "]c", desc = "Next git hunk" },
   { "[c", desc = "Prev git hunk" },
@@ -708,6 +722,14 @@ require('gitsigns').setup{
   end
 }
 
+-- Claim <LeftMouse> before satellite.setup() runs. Satellite maps it in n/v/o/i
+-- (satellite.lua: `if maparg('<leftmouse>') == ''`) to drive click-to-scroll on
+-- the scrollbar; a click in the bottom rows of that column sets topline to the
+-- last buffer line, and the handler blocks in getchar() until a <LeftRelease>,
+-- swallowing keystrokes meanwhile. Pre-empting the map keeps the scrollbar and
+-- its gitsigns/diagnostic/aerial handlers, minus the click hijack.
+vim.keymap.set({ 'n', 'v', 'o', 'i' }, '<LeftMouse>', '<LeftMouse>', { noremap = true })
+
 require('satellite').setup({
   current_only = false,
   winblend = 50,
@@ -732,16 +754,16 @@ local sunrise, sunset = nil, nil
 local last_moon = ""
 
 local moon_emoji_to_nf = {
-  ["🌑"] = "",
-  ["🌒"] = "",
-  ["🌓"] = "",
-  ["🌔"] = "",
-  ["🌕"] = "",
+  ["🌑"] = "",
+  ["🌒"] = "",
+  ["🌓"] = "",
+  ["🌔"] = "",
+  ["🌕"] = "",
 
-  ["🌖"] = "",
-  ["🌗"] = "",
+  ["🌖"] = "",
+  ["🌗"] = "",
 
-  ["🌘"] = "",
+  ["🌘"] = "",
 }
 
 local function moon_cache_stale()
@@ -1136,16 +1158,78 @@ vim.keymap.set('n', '<C-Right>', '<C-w>>', { desc = "Grow window width" })
 vim.keymap.set('n', '<C-Up>',    '<C-w>+', { desc = "Grow window height" })
 vim.keymap.set('n', '<C-Down>',  '<C-w>-', { desc = "Shrink window height" })
 vim.keymap.set('n', '<C-x>', ':bdelete<CR>', { noremap = true, silent = true, desc = 'Close buffer' })
+
+-- Reopen the most recently closed file, browser-style ("undo close tab").
+-- Neovim keeps no closed-buffer history, so track it ourselves: push every
+-- real file's path onto a stack when its buffer is deleted, and pop on demand.
+-- NB: Ctrl+Shift+X is only distinguishable from Ctrl+X in terminals that speak
+-- the kitty keyboard protocol (kitty/WezTerm/Ghostty/foot) or in a GUI; a plain
+-- terminal folds it into <C-x> (close). <leader>X is provided as a fallback.
+local closed_files = {}
+vim.api.nvim_create_autocmd("BufDelete", {
+  callback = function(args)
+    local name = vim.api.nvim_buf_get_name(args.buf)
+    if name ~= "" and vim.bo[args.buf].buftype == "" and vim.fn.filereadable(name) == 1 then
+      -- de-dup: if it's already the top of the stack, don't stack it twice
+      if closed_files[#closed_files] ~= name then closed_files[#closed_files + 1] = name end
+    end
+  end,
+})
+local function reopen_closed()
+  local name = table.remove(closed_files)
+  if name then
+    vim.cmd.edit(vim.fn.fnameescape(name))
+  else
+    vim.notify("No recently closed file to reopen", vim.log.levels.INFO)
+  end
+end
+vim.keymap.set('n', '<C-S-x>',   reopen_closed, { silent = true, desc = "Reopen most recently closed file" })
+vim.keymap.set('n', '<leader>X', reopen_closed, { silent = true, desc = "Reopen most recently closed file" })
+
 -- Cycle by the bufferline's *visual* order (respects drag-reorder + persisted
 -- order), not buffer-number order like :bprev/:bnext would.
 vim.keymap.set('n', '<leader>[', ':BufferLineCyclePrev<CR>', { silent = true, desc = "Previous buffer" })
 vim.keymap.set('n', '<leader>]', ':BufferLineCycleNext<CR>', { silent = true, desc = "Next buffer" })
 
+-- Jump straight to a buffer by its absolute position in the tabline (respects
+-- drag-reorder + persisted order). <leader>9 goes to the last buffer.
+-- Two gotchas, both fixed here:
+--  1) Pass a *numeric* arg. The :BufferLineGoToBuffer command forwards its
+--     argument as a string and go_to does list[num] with no coercion, so
+--     list["1"] misses and it silently falls back to the LAST buffer.
+--  2) Pass absolute=true. Without it go_to indexes state.visible_components --
+--     the *scrolled/truncated* slice the tabline currently renders -- so when
+--     the bar overflows and the left tabs scroll off, <leader>1 lands on the
+--     leftmost *visible* tab (e.g. the 3rd real one), not the true 1st.
+--     absolute=true indexes state.components, the full left-to-right order.
+for i = 1, 8 do
+  vim.keymap.set('n', '<leader>' .. i, function() require('bufferline').go_to(i, true) end,
+    { silent = true, desc = "Go to buffer " .. i })
+end
+vim.keymap.set('n', '<leader>9', function() require('bufferline').go_to(-1, true) end,
+  { silent = true, desc = "Go to last buffer" })
+
 -- ═══════════════════════════ SECTION: Bufferline (tabs) ═══════════════════════════
 -- Bufferline: a reorderable tabline (airline's tabline is disabled below).
--- ---- persist the drag-order of buffers across restarts, per directory ----
+-- ---- tab order: one path-keyed list, per directory, live and persisted ----
+-- Tab order is identified by *path*, never by buffer number. That's the whole
+-- design, and it's load-bearing: bufferline's own drag state (state.custom_sort)
+-- is a list of bufnrs, and a bufnr dies with its buffer. Closing a tab dropped
+-- it from that list, the next drag rewrote the list without it, and reopening
+-- the file -- now an id bufferline has never ranked -- landed it at the far
+-- right (buffers.lua get_updated_buffers sinks unranked ids to the end), so
+-- every tab past its old slot shifted left for good. Worse, custom_sort makes
+-- sorters.sort() bail early, so the first drag of a session silently switched
+-- off the persisted order below and put a bufnr list in charge instead.
+--
+-- So: bl_order is the curated order and the only authority. A drag is folded
+-- back into it (bl_sync_from_view) and custom_sort is cleared immediately, so
+-- sort_by -- which reads paths -- stays in charge for the whole session. A
+-- path survives close/reopen, so a tab's place does too.
 local bl_order_file = vim.fn.stdpath("state") .. "/bufferline_order.json"
-local bl_saved_index = {}   -- path -> position, for the current working dir
+local bl_key = vim.fn.getcwd()  -- dir the loaded order belongs to; also the save key
+local bl_order = {}             -- curated order: absolute paths, open or not
+local bl_index = {}             -- path -> position in bl_order
 
 local function bl_read_all()
   local f = io.open(bl_order_file, "r"); if not f then return {} end
@@ -1156,16 +1240,59 @@ local function bl_write_all(t)
   local f = io.open(bl_order_file, "w"); if not f then return end
   f:write(vim.json.encode(t)); f:close()
 end
+local function bl_reindex()
+  bl_index = {}
+  for i, p in ipairs(bl_order) do bl_index[p] = i end
+end
+-- Persist under the key the order was *loaded* from, not getcwd() at the moment
+-- of writing: the CMake source-root cd (SECTION: Build) moves cwd after this
+-- section has already run, and saving under the moved cwd would write an order
+-- the next launch never reads back.
+local function bl_save()
+  local all = bl_read_all()
+  all[bl_key] = bl_order
+  bl_write_all(all)
+end
+-- Give a path a place the first time it's seen, so it has a stable slot for the
+-- rest of the session instead of floating on its buffer number.
+local function bl_track(path)
+  if not path or path == "" or bl_index[path] then return end
+  bl_order[#bl_order + 1] = path
+  bl_index[path] = #bl_order
+end
 local function bl_refresh_saved()
-  bl_saved_index = {}
-  local paths = bl_read_all()[vim.fn.getcwd()]
-  if paths then for i, p in ipairs(paths) do bl_saved_index[p] = i end end
+  bl_key = vim.fn.getcwd()
+  bl_order = {}
+  -- Drop paths that no longer exist: the list outlives the buffers in it (that's
+  -- what keeps a closed tab's slot warm), so without a prune it only ever grows.
+  for _, p in ipairs(bl_read_all()[bl_key] or {}) do
+    if vim.fn.filereadable(p) == 1 then bl_order[#bl_order + 1] = p end
+  end
+  bl_reindex()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.bo[b].buflisted and vim.bo[b].buftype == "" then
+      bl_track(vim.api.nvim_buf_get_name(b))
+    end
+  end
 end
 bl_refresh_saved()
+
+vim.api.nvim_create_autocmd({ "BufAdd", "BufReadPost" }, {
+  group = vim.api.nvim_create_augroup("bufferline_order", { clear = true }),
+  callback = function(ev)
+    if vim.bo[ev.buf].buftype ~= "" then return end
+    bl_track(vim.api.nvim_buf_get_name(ev.buf))
+  end,
+})
 
 -- Two colors drive the tab styling (defined once, reused below):
 local bl_dim_bg = "#0c0e13"  -- dimmed tab-bar chrome / inactive tab background
 local bl_dim_fg = "#6b7280"  -- dimmed inactive tab text
+
+-- Populated by "Sticky buffers" in SECTION: Session. init.vim is one Lua chunk
+-- and that code lives further down, so the tabline reaches it via this table.
+local sticky = {}            -- .is_glance(path) -> bool ; .keep(bufnr)
+local bl_glance_mark = " ·"  -- marks tabs the session won't restore; "" to hide
 
 require('bufferline').setup {
   options = {
@@ -1178,10 +1305,19 @@ require('bufferline').setup {
     modified_icon = "●",
     diagnostics = false,
     always_show_bufferline = true,
-    -- Initial order follows the saved per-dir order; unknown buffers trail by id.
-    -- A manual move (BufferLineMove*) overrides this for the rest of the session.
+    -- Mark "glance" buffers -- files opened but never worked on, which the
+    -- session deliberately won't bring back. See SECTION: Session.
+    name_formatter = function(buf)
+      if bl_glance_mark ~= "" and sticky.is_glance and sticky.is_glance(buf.bufnr) then
+        return buf.name .. bl_glance_mark
+      end
+      return buf.name
+    end,
+    -- Order follows bl_order (paths) for every real file; anything without a
+    -- path in the list -- a terminal, [No Name] -- trails by id. Drags feed
+    -- back into bl_order, so this stays authoritative all session.
     sort_by = function(a, b)
-      local ia, ib = bl_saved_index[a.path], bl_saved_index[b.path]
+      local ia, ib = bl_index[a.path], bl_index[b.path]
       if ia and ib then return ia < ib end
       if ia then return true end
       if ib then return false end
@@ -1214,31 +1350,220 @@ require('bufferline').setup {
   },
 }
 
--- Save the current visual order (as file paths) on exit, keyed by directory.
-vim.api.nvim_create_autocmd("VimLeavePre", {
+-- Fold the order bufferline is *showing* back into bl_order, then hand sorting
+-- back to sort_by. Only the slots held by currently-open files are rewritten --
+-- entries for closed files keep their position, which is exactly what lets a
+-- reopened tab come back where it was instead of at the far right.
+local function bl_sync_from_view()
+  local ok, bl = pcall(require, "bufferline"); if not ok then return end
+  local els = bl.get_elements(); els = (els and els.elements) or {}
+  local seq = {}   -- open file paths, in the order now on screen
+  for _, e in ipairs(els) do
+    if e.path and e.path ~= "" then seq[#seq + 1] = e.path; bl_track(e.path) end
+  end
+  local open = {}
+  for _, p in ipairs(seq) do open[p] = true end
+  local i = 1
+  for n, p in ipairs(bl_order) do
+    if open[p] then bl_order[n] = seq[i]; i = i + 1 end
+  end
+  bl_reindex()
+  -- custom_sort is the bufnr list that caused the drift; drop it every time so
+  -- it never becomes the authority.
+  pcall(function() require("bufferline.state").custom_sort = nil end)
+  vim.cmd("redrawtabline")
+  bl_save()
+end
+
+-- A drag is durable the moment you make it. The session file is re-saved on
+-- every :bd (SECTION: Session), so an order saved only at VimLeavePre would be
+-- the one half of the state an unclean exit throws away.
+vim.api.nvim_create_autocmd("VimLeavePre", { callback = bl_save })
+
+-- Safety net for every *other* route into a bufnr order: :BufferLineMoveNext
+-- typed by hand, :BufferLineSortByDirectory, a future keymap. A non-nil
+-- custom_sort is the one unambiguous "something reordered by buffer number"
+-- signal, so catch it wherever it appears and convert it to paths. The check is
+-- a nil test on a hot event; the fold only runs when there's something to fold.
+vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold" }, {
+  group = "bufferline_order",
   callback = function()
-    local ok, bl = pcall(require, "bufferline"); if not ok then return end
-    local els = bl.get_elements(); els = (els and els.elements) or {}
-    local paths = {}
-    for _, e in ipairs(els) do
-      if e.path and e.path ~= "" then paths[#paths + 1] = e.path end
-    end
-    if #paths == 0 then return end
-    local all = bl_read_all()
-    all[vim.fn.getcwd()] = paths
-    bl_write_all(all)
+    local ok, st = pcall(require, "bufferline.state")
+    if ok and st.custom_sort then bl_sync_from_view() end
   end,
 })
 
--- Reorder the current buffer left/right within the bufferline.
-vim.keymap.set('n', '<leader><Left>',  ':BufferLineMovePrev<CR>', { silent = true, desc = "Move buffer left in tabline" })
-vim.keymap.set('n', '<leader><Right>', ':BufferLineMoveNext<CR>', { silent = true, desc = "Move buffer right in tabline" })
+-- Reorder the current buffer left/right within the bufferline. Deliberately
+-- placing a tab is curation, so it also makes the buffer stick (SECTION: Session).
+local function bl_move(cmd)
+  return function()
+    vim.cmd(cmd)
+    bl_sync_from_view()
+    if sticky.keep then sticky.keep(vim.api.nvim_get_current_buf()) end
+  end
+end
+vim.keymap.set('n', '<leader><Left>',  bl_move("BufferLineMovePrev"), { silent = true, desc = "Move buffer left in tabline" })
+vim.keymap.set('n', '<leader><Right>', bl_move("BufferLineMoveNext"), { silent = true, desc = "Move buffer right in tabline" })
 
 -- ═══════════════════════════ SECTION: Session ═══════════════════════════
 -- Session persistence (per directory): remember open buffers/tabs/window layout.
 -- What gets saved in a session — buffers, cwd, tabpages, window sizes, etc.
 vim.o.sessionoptions = "buffers,curdir,folds,globals,help,tabpages,terminal,winsize,winpos"
 require('persistence').setup()
+
+-- ---- Sticky buffers: only files you *worked on* come back ----
+-- Opening a file just to read it used to bake it into the session forever, so
+-- every glance left a tab behind. Now a buffer has to earn its place: it's
+-- "kept" once you act on it, and a "glance" buffer otherwise -- visible now,
+-- gone next launch.
+--
+-- The signal is any *edit*, not "left normal mode": dd/p/x and :s never leave
+-- normal mode but are plainly work, and InsertEnter alone would lose them.
+-- Buffers restored from a session are kept too -- they earned their place last
+-- time, and without that rule a session would decay to empty across launches.
+local KEEP_ON_VISUAL = true   -- visual/select mode counts as working on a file;
+                              -- false if select-to-yank makes too much stick
+local kept = {}               -- absolute path -> true, once earned, for this run
+local dropped = {}            -- absolute path -> true, forced back to glance by <leader>qk
+
+-- Only listed, named, real file buffers are candidates (no terminals, no help,
+-- no scratch) -- those are the only ones mksession writes as `badd` anyway.
+local function buf_file(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then return nil end
+  if vim.bo[buf].buftype ~= "" or not vim.bo[buf].buflisted then return nil end
+  local name = vim.api.nvim_buf_get_name(buf)
+  if name == "" then return nil end
+  return vim.fn.fnamemodify(name, ":p")
+end
+
+-- Whether a buffer has earned its place. The authority is its undo history:
+-- reading a file in creates no undo entry, so seq_last > 0 means it was edited
+-- -- and it stays > 0 after an undo, so a change you thought better of still
+-- counts as work. That beats both the TextChanged autocmd (:h TextChanged says
+-- it doesn't fire while there's typeahead; it was measured missing `dd` and
+-- `:%s`) and 'modified' (which a :w clears). The autocmds below only latch
+-- early, so the tabline mark clears the instant you touch a file.
+local function is_kept(buf, path)
+  if dropped[path] then return false end
+  if kept[path] then return true end
+  local ok, undo = pcall(vim.fn.undotree, buf)
+  if ok and (undo.seq_last or 0) > 0 then
+    kept[path] = true
+    return true
+  end
+  return false
+end
+
+-- The keep-list rides *inside* the session file: 'sessionoptions' has "globals"
+-- and mksession persists global strings named CamelCase, so g:KeepBufs is
+-- written by the very same mks! that writes the buffer list. It can't drift
+-- from the session, and <leader>qD deletes both at once -- no sidecar file.
+local function publish_kept()
+  local paths = {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    local p = buf_file(b)
+    if p and is_kept(b, p) then paths[#paths + 1] = p end
+  end
+  vim.g.KeepBufs = vim.json.encode(paths)
+end
+
+local function keep_buf(buf)
+  local p = buf_file(buf)
+  if not p then return end
+  if kept[p] and not dropped[p] then return end
+  kept[p] = true
+  dropped[p] = nil   -- working on it again overrides an earlier <leader>qk drop
+  publish_kept()
+  vim.cmd("redrawtabline")   -- clear the glance mark on its tab
+end
+
+-- Hand both to the tabline (forward-declared in SECTION: Bufferline).
+sticky.keep = keep_buf
+sticky.is_glance = function(bufnr)
+  local p = buf_file(bufnr)
+  return p ~= nil and not is_kept(bufnr, p)
+end
+
+local keep_group = vim.api.nvim_create_augroup("session_keep", { clear = true })
+-- InsertEnter is here on purpose: opening insert and typing nothing leaves no
+-- undo entry, but it's still intent to work on the file.
+vim.api.nvim_create_autocmd({ "InsertEnter", "TextChanged", "TextChangedI", "BufWritePost" }, {
+  group = keep_group,
+  callback = function(ev) keep_buf(ev.buf) end,
+})
+-- Refresh the keep-list immediately before persistence's exit save, so it can
+-- never be stale by the time mks! snapshots g:KeepBufs.
+vim.api.nvim_create_autocmd("User", {
+  group = keep_group,
+  pattern = "PersistenceSavePre",
+  callback = function() publish_kept() end,
+})
+if KEEP_ON_VISUAL then
+  -- ModeChanged matches its pattern against "oldmode:newmode"; the class is
+  -- v/V/CTRL-V (visual) and s/S/CTRL-S (select).
+  vim.api.nvim_create_autocmd("ModeChanged", {
+    group = keep_group,
+    pattern = "*:[vVsS" .. string.char(22, 19) .. "]*",
+    callback = function(ev) keep_buf(ev.buf) end,
+  })
+end
+
+-- Drop the glance buffers a restored session brought back with it.
+--
+-- This runs *after* the session is sourced rather than filtering at save time,
+-- for two reasons found the hard way: mksession writes a window's file even
+-- when that buffer is unlisted (and a glance usually ends with the glance file
+-- still in the window, so save-time filtering would miss the common case), and
+-- flipping 'buflisted' fires BufDelete, which would recurse into the
+-- persistence_sync save below. Filtering on load also means it works no matter
+-- how the session got written -- clean :wqa or the BufDelete sync after a kill.
+local function drop_glance_buffers()
+  local allow
+  if type(vim.g.KeepBufs) == "string" then
+    local ok, list = pcall(vim.json.decode, vim.g.KeepBufs)
+    if ok and type(list) == "table" then
+      allow = {}
+      for _, p in ipairs(list) do allow[p] = true end
+    end
+  end
+
+  local doomed, survivors = {}, {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    local p = buf_file(b)
+    -- No keep-list at all means a session written before this existed (or by a
+    -- plain :mksession): keep it whole rather than nuking someone's layout.
+    if p and allow and not allow[p] then
+      doomed[#doomed + 1] = b
+    elseif p then
+      survivors[#survivors + 1] = b
+      kept[p] = true   -- restored buffers keep the place they earned
+    end
+  end
+
+  -- Move any window off a doomed buffer first, so wiping it doesn't punch a
+  -- [No Name] hole in the layout the session just restored.
+  if survivors[1] then
+    local dead = {}
+    for _, b in ipairs(doomed) do dead[b] = true end
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if dead[vim.api.nvim_win_get_buf(win)] then
+        vim.api.nvim_win_set_buf(win, survivors[1])
+      end
+    end
+  end
+  for _, b in ipairs(doomed) do
+    pcall(vim.api.nvim_buf_delete, b, {})
+  end
+  publish_kept()
+end
+
+-- Restore this directory's session, minus the glance buffers, and pick up the
+-- tab order saved for the cwd it restored.
+local function session_load(opts)
+  require('persistence').load(opts)
+  drop_glance_buffers()
+  bl_refresh_saved()
+end
 
 -- Auto-restore the session for this directory when launching bare `nvim`
 -- (no file arguments and nothing piped in), so `nvim` in a project drops you
@@ -1275,8 +1600,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
 
     if vim.fn.argc() == 0 then
       -- Bare `nvim`: drop right back where you left off.
-      persistence.load()
-      bl_refresh_saved()   -- session restored a cwd; reload its saved tab order
+      session_load()
       return
     end
 
@@ -1294,8 +1618,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
       files[#files + 1] = vim.fn.fnamemodify(a, ":p")
     end
 
-    persistence.load()
-    bl_refresh_saved()
+    session_load()
 
     for _, f in ipairs(files) do
       vim.cmd("badd " .. vim.fn.fnameescape(f))   -- join the session's buffer list
@@ -1312,6 +1635,7 @@ vim.api.nvim_create_autocmd("StdinReadPre", {
 -- lost if nvim exits uncleanly (terminal tab closed, shell exited, process
 -- killed) and the deleted buffer reappears on next launch. Re-saving on
 -- BufDelete makes a close durable right away — no need to nuke the session.
+local save_pending = false
 vim.api.nvim_create_autocmd("BufDelete", {
   group = vim.api.nvim_create_augroup("persistence_sync", { clear = true }),
   callback = function()
@@ -1320,15 +1644,44 @@ vim.api.nvim_create_autocmd("BufDelete", {
     if vim.g.SessionLoad == 1 then return end
     local persistence = require('persistence')
     if not persistence.active() then return end
+    -- Coalesce bursts into one write -- the glance sweep at startup can delete
+    -- several buffers at once, and each would otherwise queue its own mks!.
+    if save_pending then return end
+    save_pending = true
     -- Defer so the buffer is fully off the list before mksession snapshots it.
-    vim.schedule(function() persistence.save() end)
+    vim.schedule(function()
+      save_pending = false
+      publish_kept()   -- this path bypasses persistence's own SavePre hook
+      persistence.save()
+    end)
   end,
 })
 
 -- Manual session controls if you ever want them.
-vim.keymap.set('n', '<leader>qs', function() require('persistence').load() end, { desc = "Restore session (this dir)" })
-vim.keymap.set('n', '<leader>ql', function() require('persistence').load({ last = true }) end, { desc = "Restore last session" })
+vim.keymap.set('n', '<leader>qs', function() session_load() end, { desc = "Restore session (this dir)" })
+vim.keymap.set('n', '<leader>ql', function() session_load({ last = true }) end, { desc = "Restore last session" })
 vim.keymap.set('n', '<leader>qd', function() require('persistence').stop() end, { desc = "Stop saving session" })
+
+-- Override the sticky-buffer rule for the current file: pin one you only ever
+-- read (a reference you want back tomorrow), or drop one you touched by
+-- accident. Tabs the session won't restore are marked in the tabline.
+vim.keymap.set('n', '<leader>qk', function()
+  local buf = vim.api.nvim_get_current_buf()
+  local p = buf_file(buf)
+  if not p then
+    vim.notify("Not a file buffer -- nothing to keep.", vim.log.levels.WARN)
+    return
+  end
+  -- `dropped` has to be an explicit override: without it, the undo history that
+  -- made the file stick in the first place would just re-latch it.
+  local now_kept = not is_kept(buf, p)
+  kept[p]    = now_kept or nil
+  dropped[p] = (not now_kept) or nil
+  publish_kept()
+  vim.cmd("redrawtabline")
+  vim.notify((now_kept and "Keeping " or "Dropping ") .. vim.fn.fnamemodify(p, ":~:."),
+    vim.log.levels.INFO)
+end, { desc = "Toggle: keep this file in the session" })
 
 -- Nuke this directory's saved session and stop saving for the rest of this run.
 -- Use when a stray buffer got baked into the session and keeps re-opening:
@@ -1407,16 +1760,48 @@ require('cmake-tools').setup {
   },
   cmake_runner = { name = "terminal" },         -- run built targets in a terminal
 }
--- Build, then echo a tiny unintrusive success line at the bottom (failures show
--- up as the quickfix opening, per only_on_error above).
+-- <leader>b BUILDS the already-configured tree; it must never *reconfigure*.
+-- Configuration is owned solely by scripts/build.sh (which sets CMAKE_BUILD_TYPE,
+-- toolchain, generator). cmake-tools.build() used to re-run cmake before every
+-- build using its hardcoded "Debug" default, silently clobbering a RelWithDebInfo
+-- cache down to -O0. Invoking the generator directly (cmake --build) can't touch
+-- the build type — it just compiles what build.sh configured. Success echoes a
+-- quiet line; failures populate + open the quickfix (mirrors the old only_on_error).
+local function project_build_dir()
+  local cml = vim.fs.find("CMakeLists.txt", { upward = true, type = "file", path = vim.loop.cwd() })[1]
+  local root = cml and vim.fs.dirname(cml) or vim.loop.cwd()
+  return root .. "/build"
+end
+
 local function cmake_build()
-  require('cmake-tools').build({}, function(result)
-    local ok = result and ((type(result.is_ok) == "function" and result:is_ok())
-                            or result.code == 0)
-    if ok then
-      vim.api.nvim_echo({ { "✓ Build succeeded", "DiagnosticOk" } }, false, {})
-    end
-  end)
+  local bdir = project_build_dir()
+  if vim.fn.filereadable(bdir .. "/CMakeCache.txt") == 0 then
+    vim.api.nvim_echo({ { "no configured build/ — run scripts/build.sh first", "WarningMsg" } }, true, {})
+    return
+  end
+  local out = {}
+  local function sink(_, data) if data then vim.list_extend(out, data) end end
+  vim.fn.jobstart({ "cmake", "--build", bdir }, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = sink,
+    on_stderr = sink,
+    on_exit = function(_, code)
+      vim.schedule(function()
+        if code == 0 then
+          vim.api.nvim_echo({ { "✓ Build succeeded", "DiagnosticOk" } }, false, {})
+        else
+          vim.fn.setqflist({}, " ", {
+            title = "cmake --build",
+            lines = out,
+            efm = "%f:%l:%c: %t%*[^:]: %m,%f:%l:%c: %m,%f:%l: %m",
+          })
+          vim.cmd("botright copen 12")
+          vim.api.nvim_echo({ { "✗ Build failed", "DiagnosticError" } }, false, {})
+        end
+      end)
+    end,
+  })
 end
 vim.keymap.set('n', '<leader>b',  cmake_build,                        { desc = "CMake build" })
 vim.keymap.set('n', '<leader>cg', '<cmd>CMakeGenerate<cr>',          { desc = "CMake generate/configure" })
@@ -1427,6 +1812,9 @@ vim.keymap.set('n', '<leader>ct', '<cmd>CMakeSelectBuildTarget<cr>',{ desc = "CM
 vim.keymap.set('n', '<leader>cl', '<cmd>CMakeSelectLaunchTarget<cr>',{ desc = "CMake select launch target" })
 vim.keymap.set('n', '<leader>cv', '<cmd>CMakeSelectBuildType<cr>',  { desc = "CMake select build type" })
 
+vim.o.scroll = math.floor(vim.o.window / 2)
+vim.api.nvim_set_keymap('n', '<C-e>', '10<C-e>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<C-y>', '10<C-y>', { noremap = true, silent = true })
 -- overseer.nvim: kept as a bare-bones ad-hoc task runner for non-CMake odd jobs.
 require('overseer').setup {}
 vim.keymap.set('n', '<leader>or', '<cmd>OverseerRun<cr>',    { desc = "Run a task (Overseer)" })
@@ -1530,13 +1918,12 @@ nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags({
             \ cwd = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
             \ })<cr>
 
-for s:i in range(1, 9)
-    execute 'nnoremap <silent> <leader>' . s:i .
-        \ ' :let g:bufs = getbufinfo({"buflisted": 1}) \|' .
-        \ ' if len(g:bufs) >= ' . s:i .
-        \ ' \| execute "buffer " . g:bufs[' . (s:i - 1) . ']["bufnr"]' .
-        \ ' \| endif<CR>'
-endfor
+" NOTE: <leader>1..9 are mapped in the Lua block above via bufferline's
+" go_to(i, true), which honours the tabline's *visual*/persisted order. The old
+" vimscript loop that lived here jumped by getbufinfo() (buffer-NUMBER) order --
+" bufferline-incompatible -- and, being defined after the Lua maps, silently
+" shadowed them so <leader>1 landed on the lowest-bufnr buffer (often visual
+" tab 3), not the leftmost tab. Removed.
 
 autocmd BufReadPost *
      \ if line("'\"") > 0 && line("'\"") <= line("$") |
@@ -1591,6 +1978,64 @@ set expandtab
 set autoindent
 set smartindent
 set cursorline
+
+" Spellcheck (native, treesitter-scoped). 'spell' is window-local, and whenever a
+" treesitter highlighter is attached to a buffer it forces 'spelloptions' to
+" include `noplainbuffer` (see :h spelloptions), which restricts spell to @spell
+" captures — i.e. comments & strings — so code identifiers are NOT flagged. With
+" NO highlighter (no parser for the filetype), `noplainbuffer` is absent and the
+" WHOLE buffer is checked, which flags every identifier. That's the bug this
+" scoping fixes: we enable spell only where it can be constrained.
+"   - prose filetypes (markdown/text/…) → spell the whole buffer (it's all prose)
+"   - any other filetype WITH a parser  → spell, scoped by TS to comments/strings
+"   - a filetype WITHOUT a parser        → leave spell OFF (can't scope it safely)
+"   - UI/utility/terminal buffers        → OFF (pure noise)
+" Driven per-window off BufWinEnter/FileType/TermOpen so it's correct on splits
+" and :setf too. Correct a word with z=.
+set spelllang=en_us
+set nospell
+" Only flag genuine misspellings (SpellBad). Drop the pedantic categories:
+" capitalisation-at-sentence-start (killed at the source via empty
+" spellcapcheck), rare-but-real words (SpellRare), and regional-variant
+" spellings valid in another English locale (SpellLocal).
+set spellcapcheck=
+highlight! link SpellCap NONE
+highlight! link SpellRare NONE
+highlight! link SpellLocal NONE
+
+lua << EOF
+-- Filetypes that are prose end to end: spellcheck the whole buffer.
+local spell_prose = {
+  markdown = true, text = true, gitcommit = true, gitrebase = true,
+  rst = true, tex = true, plaintex = true, mail = true, asciidoc = true, org = true,
+}
+-- UI / utility buffers where spell is pure noise.
+local spell_never = {
+  nerdtree = true, TelescopePrompt = true, aerial = true, trouble = true,
+  qf = true, help = true, checkhealth = true,
+}
+local function scoped_spell()
+  local buf = vim.api.nvim_get_current_buf()
+  local ft = vim.bo[buf].filetype
+  local enable
+  if vim.bo[buf].buftype ~= '' or spell_never[ft] then
+    enable = false                       -- terminals, prompts, special buffers
+  elseif spell_prose[ft] then
+    enable = true                        -- prose: whole buffer
+  else
+    -- Code (or unknown): only spell if a parser is available, so that the TS
+    -- highlighter's `noplainbuffer` will confine spell to @spell (comments &
+    -- strings). No parser → can't scope → leave it off entirely.
+    local lang = vim.treesitter.language.get_lang(ft)
+    local ok, avail = pcall(vim.treesitter.language.add, lang)
+    enable = ok and avail == true
+  end
+  vim.wo.spell = enable
+end
+vim.api.nvim_create_autocmd({ "BufWinEnter", "FileType", "TermOpen" }, {
+  callback = scoped_spell,
+})
+EOF
 
 highlight CursorLineNr ctermfg=Yellow guifg=Yellow
 highlight CursorLine ctermbg=NONE guibg=NONE
